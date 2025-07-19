@@ -16,25 +16,21 @@ Preferred communication style: Simple, everyday language.
 - **Styling**: Tailwind CSS with CSS custom properties for theming
 - **Routing**: Wouter for client-side routing
 - **State Management**: TanStack Query for server state management
-- **Authentication**: Replit Auth integration with OpenID Connect
 - **Build Tool**: Vite with React plugin and custom configuration
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js server
 - **Language**: TypeScript with ES modules
-- **Database**: PostgreSQL with Drizzle ORM (replaced MemStorage)
+- **Database**: PostgreSQL with Drizzle ORM
 - **Database Service**: Neon Database (serverless PostgreSQL)
-- **Authentication**: Replit Auth with Passport.js and OpenID Connect
-- **Session Storage**: PostgreSQL-based session storage with connect-pg-simple
 - **File Handling**: Multer for multipart form data processing
 - **Development**: Custom Vite integration for SSR-like development experience
 
 ## Key Components
 
 ### Database Schema
-- **Sessions**: Session storage table (mandatory for Replit Auth)
-- **Users**: Replit Auth user management with profile data (id, email, firstName, lastName, profileImageUrl) and plan-based features
-- **Conversations**: Chat session management tied to users (using string-based user IDs from Replit)
+- **Users**: Authentication and user management with plan-based features (free/pro)
+- **Conversations**: Chat session management tied to users
 - **Messages**: Individual messages within conversations with role-based content and metadata storage
 
 ### AI Integration
@@ -100,20 +96,4 @@ Preferred communication style: Simple, everyday language.
 - **Production**: PostgreSQL with Drizzle ORM for type-safe database operations
 - **Session Management**: Connect-pg-simple for PostgreSQL session storage
 
-## Recent Changes (July 19, 2025)
-
-### Replit Auth Integration Completed
-- **Authentication System**: Completely replaced custom email/password authentication with Replit Auth using OpenID Connect
-- **Database Migration**: Updated user schema to support Replit Auth user model (string IDs, profile data)
-- **Session Management**: Implemented PostgreSQL-based session storage with connect-pg-simple
-- **Frontend Updates**: Added Landing page for logged-out users, updated Dashboard with proper auth hooks
-- **Auth Routes**: Implemented `/api/login`, `/api/logout`, `/api/callback`, and `/api/auth/user` endpoints
-- **User Interface**: Added logout functionality and user profile display in dashboard sidebar
-
-### Technical Implementation
-- **Backend**: Added `replitAuth.ts` with Passport.js strategies and session management
-- **Database**: Created `DatabaseStorage` class replacing `MemStorage` for production data persistence
-- **Frontend**: Created `useAuth` hook and `authUtils` for client-side authentication handling
-- **Error Handling**: Implemented proper unauthorized error handling throughout the application
-
-The application now uses Replit's authentication system for secure user management and maintains session state across the application with proper database persistence. The app follows a monorepo structure with shared TypeScript types and schemas, enabling type safety across the full stack while maintaining clear separation between client and server concerns.
+The application follows a monorepo structure with shared TypeScript types and schemas, enabling type safety across the full stack while maintaining clear separation between client and server concerns.

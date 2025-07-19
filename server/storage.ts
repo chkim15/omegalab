@@ -1,82 +1,118 @@
-import {
-  users,
-  conversations,
-  messages,
-  type User,
-  type UpsertUser,
-  type Conversation,
-  type InsertConversation,
-  type Message,
-  type InsertMessage,
-} from "@shared/schema";
-import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { users, conversations, messages, type User, type InsertUser, type Conversation, type InsertConversation, type Message, type InsertMessage } from "@shared/schema";
 
-// Interface for storage operations
 export interface IStorage {
   // User operations
-  // (IMPORTANT) these user operations are mandatory for Replit Auth.
-  getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
   
   // Conversation operations
-  getConversationsByUserId(userId: string): Promise<Conversation[]>;
+  getConversation(id: number): Promise<Conversation | undefined>;
+  getUserConversations(userId: number): Promise<Conversation[]>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
+  updateConversation(id: number, updates: Partial<Conversation>): Promise<Conversation | undefined>;
   
   // Message operations
-  getMessagesByConversationId(conversationId: number): Promise<Message[]>;
+  getMessage(id: number): Promise<Message | undefined>;
+  getConversationMessages(conversationId: number): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
 }
 
-export class DatabaseStorage implements IStorage {
-  // User operations
-  // (IMPORTANT) these user operations are mandatory for Replit Auth.
+export class MemStorage implements IStorage {
+  private users: Map<number, User>;
+  private conversations: Map<number, Conversation>;
+  private messages: Map<number, Message>;
+  private currentUserId: number;
+  private currentConversationId: number;
+  private currentMessageId: number;
 
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
+  constructor() {
+    this.users = new Map();
+    this.conversations = new Map();
+    this.messages = new Map();
+    this.currentUserId = 1;
+    this.currentConversationId = 1;
+    this.currentMessageId = 1;
+  }
+
+  async getUser(id: number): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.username === username);
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.email === email);
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const id = this.currentUserId++;
+    const user: User = {
+      ...insertUser,
+      id,
+      plan: "free",
+      createdAt: new Date(),
+    };
+    this.users.set(id, user);
     return user;
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return user;
+  async getConversation(id: number): Promise<Conversation | undefined> {
+    return this.conversations.get(id);
   }
 
-  // Conversation operations
-  async getConversationsByUserId(userId: string): Promise<Conversation[]> {
-    return await db.select().from(conversations).where(eq(conversations.userId, userId));
+  async getUserConversations(userId: number): Promise<Conversation[]> {
+    return Array.from(this.conversations.values()).filter(conv => conv.userId === userId);
   }
 
-  async createConversation(conversation: InsertConversation): Promise<Conversation> {
-    const [newConversation] = await db
-      .insert(conversations)
-      .values(conversation)
-      .returning();
-    return newConversation;
+  async createConversation(insertConversation: InsertConversation): Promise<Conversation> {
+    const id = this.currentConversationId++;
+    const conversation: Conversation = {
+      id,
+      userId: insertConversation.userId || null,
+      title: insertConversation.title,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.conversations.set(id, conversation);
+    return conversation;
   }
 
-  // Message operations
-  async getMessagesByConversationId(conversationId: number): Promise<Message[]> {
-    return await db.select().from(messages).where(eq(messages.conversationId, conversationId));
+  async updateConversation(id: number, updates: Partial<Conversation>): Promise<Conversation | undefined> {
+    const conversation = this.conversations.get(id);
+    if (!conversation) return undefined;
+    
+    const updated = { ...conversation, ...updates, updatedAt: new Date() };
+    this.conversations.set(id, updated);
+    return updated;
   }
 
-  async createMessage(message: InsertMessage): Promise<Message> {
-    const [newMessage] = await db
-      .insert(messages)
-      .values(message)
-      .returning();
-    return newMessage;
+  async getMessage(id: number): Promise<Message | undefined> {
+    return this.messages.get(id);
+  }
+
+  async getConversationMessages(conversationId: number): Promise<Message[]> {
+    return Array.from(this.messages.values())
+      .filter(msg => msg.conversationId === conversationId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async createMessage(insertMessage: InsertMessage): Promise<Message> {
+    const id = this.currentMessageId++;
+    const message: Message = {
+      id,
+      conversationId: insertMessage.conversationId,
+      role: insertMessage.role,
+      content: insertMessage.content,
+      metadata: insertMessage.metadata || null,
+      createdAt: new Date(),
+    };
+    this.messages.set(id, message);
+    return message;
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage = new MemStorage();

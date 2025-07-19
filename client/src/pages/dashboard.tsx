@@ -19,7 +19,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/useAuth";
 import StreamingMessage from "@/components/StreamingMessage";
 
 interface Message {
@@ -45,17 +44,27 @@ export default function Dashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { user, isLoading: userLoading } = useAuth();
+  // Mock user for now - we'll replace this with real auth later
+  const userId = 1;
 
   // Fetch conversations
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery({
-    queryKey: ["/api/conversations"],
-    enabled: !!user,
+    queryKey: ["/api/conversations", userId],
+    queryFn: async () => {
+      const response = await fetch(`/api/conversations?userId=${userId}`);
+      if (!response.ok) throw new Error('Failed to fetch conversations');
+      return response.json();
+    },
   });
 
   // Fetch messages for current conversation
   const { data: messages = [], isLoading: messagesLoading } = useQuery({
     queryKey: ["/api/conversations", currentConversationId, "messages"],
+    queryFn: async () => {
+      const response = await fetch(`/api/conversations/${currentConversationId}/messages`);
+      if (!response.ok) throw new Error('Failed to fetch messages');
+      return response.json();
+    },
     enabled: !!currentConversationId,
   });
 
@@ -198,36 +207,20 @@ export default function Dashboard() {
 
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2 text-sm">
-              {user?.profileImageUrl && (
-                <img 
-                  src={user.profileImageUrl} 
-                  alt="Profile" 
-                  className="w-6 h-6 rounded-full object-cover"
-                />
-              )}
-              <span className="text-gray-700 dark:text-gray-300">
-                {user?.firstName || user?.email?.split('@')[0] || 'User'}
-              </span>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => window.location.href = "/api/logout"}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              Logout
-            </Button>
-          </div>
           <div className="flex items-center justify-between">
             <Button variant="ghost" size="sm">
               <Settings className="h-4 w-4 mr-2" />
-              Settings
+              Settings & Tutorials
+              <Badge variant="secondary" className="ml-2 bg-omegalab-blue text-white">
+                1
+              </Badge>
             </Button>
           </div>
           <div className="mt-2 text-xs text-gray-500">
-            Plan: {user?.plan || 'Free'}
+            More free messages in 22 hrs, 28 mins
+          </div>
+          <div className="mt-1 text-xs text-omegalab-blue">
+            📈 Try Pro for free →
           </div>
         </div>
       </div>
