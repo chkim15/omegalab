@@ -47,13 +47,21 @@ export default function Dashboard() {
   // Fetch conversations
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery({
     queryKey: ["/api/conversations", userId],
-    queryFn: () => apiRequest(`/api/conversations?userId=${userId}`),
+    queryFn: async () => {
+      const response = await fetch(`/api/conversations?userId=${userId}`);
+      if (!response.ok) throw new Error('Failed to fetch conversations');
+      return response.json();
+    },
   });
 
   // Fetch messages for current conversation
   const { data: messages = [], isLoading: messagesLoading } = useQuery({
     queryKey: ["/api/conversations", currentConversationId, "messages"],
-    queryFn: () => apiRequest(`/api/conversations/${currentConversationId}/messages`),
+    queryFn: async () => {
+      const response = await fetch(`/api/conversations/${currentConversationId}/messages`);
+      if (!response.ok) throw new Error('Failed to fetch messages');
+      return response.json();
+    },
     enabled: !!currentConversationId,
   });
 

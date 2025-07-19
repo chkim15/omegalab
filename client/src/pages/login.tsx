@@ -56,10 +56,10 @@ export default function Login() {
   };
 
   const handleGoogleLogin = () => {
-    // This will be implemented with Google OAuth
+    // For now, show a message that Google auth is not yet implemented
     toast({
-      title: "Coming Soon",
-      description: "Google authentication will be available soon!",
+      title: "Google Sign In",
+      description: "Google authentication is not implemented yet. Please use email login for now.",
     });
   };
 

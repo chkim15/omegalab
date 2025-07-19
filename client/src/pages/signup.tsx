@@ -82,8 +82,8 @@ export default function SignUp() {
 
   const handleGoogleSignUp = () => {
     toast({
-      title: "Coming Soon",
-      description: "Google authentication will be available soon!",
+      title: "Google Sign Up", 
+      description: "Google authentication is not implemented yet. Please use email sign up for now.",
     });
   };
 
