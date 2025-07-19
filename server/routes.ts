@@ -119,7 +119,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         conversationId,
         role: "user",
         content: problem,
-        metadata: { inputMethod }
+        metadata: { 
+          inputMethod,
+          images: req.body.images || null
+        }
       });
 
       // Solve the problem

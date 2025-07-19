@@ -124,14 +124,15 @@ export default function Dashboard() {
 
   // Send message mutation
   const sendMessageMutation = useMutation({
-    mutationFn: (messageText: string) =>
+    mutationFn: (messageData: { problem: string; mode: string; images?: any[] }) =>
       apiRequest("/api/solve", {
         method: "POST",
         body: {
-          problem: messageText,
+          problem: messageData.problem,
           conversationId: currentConversationId,
           inputMethod: "text",
-          mode: selectedMode,
+          mode: messageData.mode,
+          images: messageData.images,
         },
       }),
     onSuccess: (data) => {
@@ -227,34 +228,41 @@ export default function Dashboard() {
 
     let finalMessage = message;
 
-    // Process any uploaded images
+    // Process any uploaded images and store them with the message
+    let imageData = [];
     if (uploadedImages.length > 0) {
       setIsUploading(true);
       try {
-        for (const imageData of uploadedImages) {
-          // Convert image to base64
+        for (const imageItem of uploadedImages) {
+          // Convert image to base64 for storage
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => {
               const result = reader.result as string;
-              const base64Data = result.split(',')[1];
-              resolve(base64Data);
+              resolve(result); // Keep full data URL
             };
             reader.onerror = reject;
-            reader.readAsDataURL(imageData.file);
+            reader.readAsDataURL(imageItem.file);
           });
 
-          // Analyze the image
-          const response = await fetch('/api/analyze-image', {
+          // Analyze the image for text extraction
+          const analysisResponse = await fetch('/api/analyze-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: base64 }),
+            body: JSON.stringify({ image: base64.split(',')[1] }),
           });
 
-          if (response.ok) {
-            const data = await response.json();
-            finalMessage += (finalMessage ? '\n\n' : '') + `[Image content: ${data.extractedText}]`;
+          if (analysisResponse.ok) {
+            const analysis = await analysisResponse.json();
+            finalMessage = finalMessage || analysis.extractedText;
           }
+
+          // Store image data for display
+          imageData.push({
+            url: base64,
+            name: imageItem.file.name,
+            size: imageItem.file.size
+          });
         }
 
         // Clean up image URLs
@@ -277,11 +285,19 @@ export default function Dashboard() {
       createConversationMutation.mutate(title);
       setTimeout(() => {
         if (currentConversationId) {
-          sendMessageMutation.mutate(finalMessage);
+          sendMessageMutation.mutate({ 
+            problem: finalMessage, 
+            mode: selectedMode,
+            images: imageData.length > 0 ? imageData : undefined
+          });
         }
       }, 100);
     } else {
-      sendMessageMutation.mutate(finalMessage);
+      sendMessageMutation.mutate({ 
+        problem: finalMessage, 
+        mode: selectedMode,
+        images: imageData.length > 0 ? imageData : undefined
+      });
     }
   };
 
@@ -460,7 +476,24 @@ export default function Dashboard() {
                           isStreaming={streamingMessageId === -1 && msg.id === Math.max(...messages.filter(m => m.role === "assistant").map(m => m.id))}
                         />
                       ) : (
-                        <div className="text-gray-900 dark:text-white">{msg.content}</div>
+                        <div className="text-gray-900 dark:text-white">
+                          {/* Show images if they exist */}
+                          {msg.metadata?.images && Array.isArray(msg.metadata.images) && (
+                            <div className="mb-3 flex flex-wrap gap-2">
+                              {msg.metadata.images.map((img: any, imgIndex: number) => (
+                                <img 
+                                  key={imgIndex}
+                                  src={img.url}
+                                  alt="Uploaded image" 
+                                  className="max-w-xs max-h-48 object-contain rounded border"
+                                />
+                              ))}
+                            </div>
+                          )}
+                          <div className="whitespace-pre-wrap">
+                            {msg.content}
+                          </div>
+                        </div>
                       )}
                     </div>
                     {msg.role === "user" && (

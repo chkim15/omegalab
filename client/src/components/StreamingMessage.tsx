@@ -49,17 +49,22 @@ export default function StreamingMessage({
   }, [currentIndex, content, isStreaming, streamingSpeed]);
 
   const renderMathContent = (text: string) => {
-    // First, let's clean up the text to handle formatting better
-    const cleanText = text
+    // First convert common math symbols to proper notation
+    let processedText = text
+      .replace(/sqrt\(([^)]+)\)/g, '√($1)')  // sqrt(x) → √(x)
+      .replace(/sqrt([a-zA-Z0-9]+)/g, '√$1')  // sqrtx → √x
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') // Convert ** to <strong>
-      .replace(/\*([^*]+)\*/g, '<em>$1</em>'); // Convert * to <em>
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>') // Convert * to <em>
+      .replace(/\^2/g, '²')  // x^2 → x²
+      .replace(/\^3/g, '³')  // x^3 → x³
+      .replace(/\^([0-9]+)/g, '<sup>$1</sup>'); // x^n → x^n with superscript
     
-    // Split content by math delimiters, but keep them simple for now
-    const parts = cleanText.split(/(\$[^$]+\$)/);
+    // Split content by math delimiters
+    const parts = processedText.split(/(\$[^$]+\$)/);
     
     return parts.map((part, index) => {
       if (part.startsWith('$') && part.endsWith('$') && part.length > 2) {
-        // Inline math
+        // Inline math with KaTeX
         const mathContent = part.slice(1, -1);
         try {
           return <InlineMath key={index} math={mathContent} />;
@@ -67,7 +72,7 @@ export default function StreamingMessage({
           return <span key={index} className="font-mono bg-gray-100 px-1 rounded">{mathContent}</span>;
         }
       } else {
-        // Regular text - handle HTML tags we created
+        // Regular text with HTML formatting and math symbols
         return (
           <span key={index} 
                 className="whitespace-pre-wrap"
