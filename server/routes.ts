@@ -120,20 +120,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .replace(/√(\d+)/g, '$\\sqrt{$1}$')
           .replace(/√\(([^)]+)\)/g, '$\\sqrt{$1}$')
           .replace(/±/g, '$\\pm$')
-          .replace(/(\-?\d+)\s*±\s*(.+?)i/g, '$1 \\pm $2i$');
+          .replace(/(\-?\d+)\s*±\s*(.+?)i/g, '$1 \\pm $2i$')
+          .replace(/\*\*(.*?)\*\*/g, '**$1**') // Keep bold formatting
+          .replace(/\*(.*?)\*/g, '*$1*'); // Keep italic formatting
       };
 
       const response = mode === "answer" 
         ? `${formatMathText(solution.explanation)}
 
-${Array.isArray(solution.steps) ? solution.steps.map((step, index) => `**Step ${index + 1}:** ${formatMathText(step)}`).join('\n\n') : ''}
+${Array.isArray(solution.steps) && solution.steps.length > 0 ? solution.steps.map((step, index) => `**Step ${index + 1}:** ${formatMathText(step)}`).join('\n\n') : ''}
 
 **Solution:** ${formatMathText(solution.solution)}
 
 *Confidence: ${Math.round(solution.confidence * 100)}%*`
         : `${formatMathText(solution.explanation)}
 
-${Array.isArray(solution.steps) ? solution.steps.map((step, index) => `**Hint ${index + 1}:** ${formatMathText(step)}`).join('\n\n') : ''}
+${Array.isArray(solution.steps) && solution.steps.length > 0 ? solution.steps.map((step, index) => `**Hint ${index + 1}:** ${formatMathText(step)}`).join('\n\n') : ''}
 
 ${formatMathText(solution.solution)}
 

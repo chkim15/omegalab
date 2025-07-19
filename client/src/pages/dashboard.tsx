@@ -302,7 +302,7 @@ export default function Dashboard() {
                         </div>
                       ) : (
                         <div className="flex items-center space-x-2 mb-2">
-                          <span className="font-medium text-gray-700 dark:text-gray-300">Thetawise</span>
+                          <span className="font-medium text-gray-700 dark:text-gray-300">OmegaLab</span>
                         </div>
                       )}
                       {msg.role === "assistant" ? (

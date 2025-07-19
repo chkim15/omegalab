@@ -49,27 +49,49 @@ export default function StreamingMessage({
   }, [currentIndex, content, isStreaming, streamingSpeed]);
 
   const renderMathContent = (text: string) => {
+    // Remove asterisks used for markdown formatting
+    const cleanText = text.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
+    
     // Split content by math delimiters
-    const parts = text.split(/(\$\$[^$]+\$\$|\$[^$]+\$)/);
+    const parts = cleanText.split(/(\$\$[^$]+\$\$|\$[^$]+\$)/);
     
     return parts.map((part, index) => {
       if (part.startsWith('$$') && part.endsWith('$$')) {
         // Block math
         const mathContent = part.slice(2, -2);
-        return (
-          <div key={index} className="my-2">
-            <BlockMath math={mathContent} />
-          </div>
-        );
+        try {
+          return (
+            <div key={index} className="my-2">
+              <BlockMath math={mathContent} />
+            </div>
+          );
+        } catch (e) {
+          return <span key={index}>{part}</span>;
+        }
       } else if (part.startsWith('$') && part.endsWith('$')) {
         // Inline math
         const mathContent = part.slice(1, -1);
-        return <InlineMath key={index} math={mathContent} />;
+        try {
+          return <InlineMath key={index} math={mathContent} />;
+        } catch (e) {
+          return <span key={index}>{part}</span>;
+        }
       } else {
-        // Regular text - preserve formatting
+        // Regular text - preserve formatting and handle bold
+        const formattedText = part
+          .split(/(\*\*[^*]+\*\*|\*[^*]+\*)/)
+          .map((segment, segIndex) => {
+            if (segment.startsWith('**') && segment.endsWith('**')) {
+              return <strong key={segIndex}>{segment.slice(2, -2)}</strong>;
+            } else if (segment.startsWith('*') && segment.endsWith('*')) {
+              return <em key={segIndex}>{segment.slice(1, -1)}</em>;
+            }
+            return segment;
+          });
+        
         return (
           <span key={index} className="whitespace-pre-wrap">
-            {part}
+            {formattedText}
           </span>
         );
       }

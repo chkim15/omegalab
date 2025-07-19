@@ -76,11 +76,16 @@ Guide the student to think through the problem step by step. Please respond with
 
     const result = JSON.parse(response.choices[0].message.content || "{}");
     
+    // Ensure steps is always an array of strings
+    const steps = Array.isArray(result.steps) 
+      ? result.steps.map(step => typeof step === 'string' ? step : String(step || ''))
+      : [];
+    
     return {
-      solution: result.solution || "Unable to solve this problem",
-      steps: result.steps || [],
-      explanation: result.explanation || "No explanation available",
-      confidence: Math.max(0, Math.min(1, result.confidence || 0.8)),
+      solution: String(result.solution || "Unable to solve this problem"),
+      steps: steps,
+      explanation: String(result.explanation || "No explanation available"),
+      confidence: Math.max(0, Math.min(1, Number(result.confidence) || 0.8)),
     };
   } catch (error) {
     console.error("Error solving math problem:", error);
