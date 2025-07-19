@@ -109,20 +109,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (typeof text !== 'string') {
           text = String(text || '');
         }
+        // Clean up the text and add proper spacing
         return text
+          .replace(/([a-zA-Z])(\d)/g, '$1 $2') // Add space between letters and numbers
+          .replace(/(\d)([a-zA-Z])/g, '$1$2') // Keep number-letter together for variables like 2x
           .replace(/x\^2/g, '$x^2$')
           .replace(/x\^(\d+)/g, '$x^{$1}$')
           .replace(/(\d+)x/g, '$1x$')
           .replace(/\+\s*(\d+)x/g, ' + $1x')
           .replace(/\-\s*(\d+)x/g, ' - $1x')
           .replace(/=\s*0/g, ' = 0')
-          .replace(/x\s*=\s*([^,\s]+)/g, '$x = $1$')
+          .replace(/x\s*=\s*([^,\s\n]+)/g, '$x = $1$')
           .replace(/√(\d+)/g, '$\\sqrt{$1}$')
           .replace(/√\(([^)]+)\)/g, '$\\sqrt{$1}$')
           .replace(/±/g, '$\\pm$')
           .replace(/(\-?\d+)\s*±\s*(.+?)i/g, '$1 \\pm $2i$')
-          .replace(/\*\*(.*?)\*\*/g, '**$1**') // Keep bold formatting
-          .replace(/\*(.*?)\*/g, '*$1*'); // Keep italic formatting
+          .replace(/\s+/g, ' ') // Clean up extra spaces
+          .trim();
       };
 
       const response = mode === "answer" 
