@@ -245,17 +245,7 @@ export default function Dashboard() {
             reader.readAsDataURL(imageItem.file);
           });
 
-          // Analyze the image for text extraction
-          const analysisResponse = await fetch('/api/analyze-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: base64.split(',')[1] }),
-          });
-
-          if (analysisResponse.ok) {
-            const analysis = await analysisResponse.json();
-            finalMessage = finalMessage || analysis.extractedText;
-          }
+          // No need to analyze separately - OpenAI will process the image directly
 
           // Store image data for display
           imageData.push({
@@ -281,12 +271,12 @@ export default function Dashboard() {
     }
 
     if (!currentConversationId) {
-      const title = finalMessage.length > 50 ? finalMessage.substring(0, 50) + "..." : finalMessage;
+      const title = (finalMessage || "Image problem").length > 50 ? (finalMessage || "Image problem").substring(0, 50) + "..." : (finalMessage || "Image problem");
       createConversationMutation.mutate(title);
       setTimeout(() => {
         if (currentConversationId) {
           sendMessageMutation.mutate({ 
-            problem: finalMessage, 
+            problem: finalMessage || "Please solve the math problem in the attached image", 
             mode: selectedMode,
             images: imageData.length > 0 ? imageData : undefined
           });
@@ -294,7 +284,7 @@ export default function Dashboard() {
       }, 100);
     } else {
       sendMessageMutation.mutate({ 
-        problem: finalMessage, 
+        problem: finalMessage || "Please solve the math problem in the attached image", 
         mode: selectedMode,
         images: imageData.length > 0 ? imageData : undefined
       });

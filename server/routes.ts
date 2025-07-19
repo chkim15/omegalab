@@ -108,7 +108,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Math solving routes
   app.post("/api/solve", async (req, res) => {
     try {
-      const { problem, conversationId, inputMethod = "text", mode = "answer" } = req.body;
+      const { problem, conversationId, inputMethod = "text", mode = "answer", images } = req.body;
       
       if (!problem || !conversationId) {
         return res.status(400).json({ message: "Problem and conversation ID required" });
@@ -125,8 +125,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
 
-      // Solve the problem
-      const solution = await solveMathProblem(problem, inputMethod, mode);
+      // Solve the problem - pass images directly to OpenAI
+      const solution = await solveMathProblem(problem, inputMethod, mode, images);
       
       // Format the response with better math notation
       const formatMathText = (text: any) => {

@@ -15,7 +15,8 @@ export interface MathSolutionResponse {
 export async function solveMathProblem(
   problem: string,
   inputMethod: "text" | "voice" | "image" | "drawing" = "text",
-  mode: "answer" | "tutor" = "answer"
+  mode: "answer" | "tutor" = "answer",
+  images?: { url: string; name?: string }[]
 ): Promise<MathSolutionResponse> {
   try {
     const systemPrompt = mode === "answer" 
@@ -54,6 +55,7 @@ Respond with a JSON object containing:
 ${problem}
 
 Input method used: ${inputMethod}
+${images && images.length > 0 ? `\nImages provided: ${images.length} image(s) with math content` : ''}
 
 Please respond with a JSON object as specified in the system prompt.`
       : `Please provide hints and guidance for this math problem without giving the complete answer:
@@ -61,14 +63,29 @@ Please respond with a JSON object as specified in the system prompt.`
 ${problem}
 
 Input method used: ${inputMethod}
+${images && images.length > 0 ? `\nImages provided: ${images.length} image(s) with math content` : ''}
 
 Guide the student to think through the problem step by step. Please respond with a JSON object as specified in the system prompt.`;
+
+    // Build message content - include images if provided
+    const messageContent: any[] = [{ type: "text", text: userPrompt }];
+    
+    if (images && images.length > 0) {
+      images.forEach(image => {
+        messageContent.push({
+          type: "image_url",
+          image_url: {
+            url: image.url
+          }
+        });
+      });
+    }
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
+        { role: "user", content: messageContent }
       ],
       response_format: { type: "json_object" },
       max_tokens: 2000,
