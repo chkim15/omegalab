@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [location, navigate] = useLocation();
   const [message, setMessage] = useState("");
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
+  const [selectedMode, setSelectedMode] = useState<"answer" | "tutor">("tutor");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -87,6 +88,7 @@ export default function Dashboard() {
           problem: messageText,
           conversationId: currentConversationId,
           inputMethod: "text",
+          mode: selectedMode,
         },
       }),
     onSuccess: () => {
@@ -231,12 +233,25 @@ export default function Dashboard() {
           </div>
           <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">(optional)</div>
           <div className="mt-4 flex space-x-2">
-            <Button variant="outline" size="sm" className="text-gray-600">
+            <Button 
+              variant={selectedMode === "answer" ? "default" : "outline"}
+              size="sm" 
+              className={selectedMode === "answer" 
+                ? "bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-800" 
+                : "text-gray-600"
+              }
+              onClick={() => setSelectedMode("answer")}
+            >
               Give me the answer
             </Button>
             <Button
+              variant={selectedMode === "tutor" ? "default" : "outline"}
               size="sm"
-              className="bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-800"
+              className={selectedMode === "tutor" 
+                ? "bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-800"
+                : "text-gray-600"
+              }
+              onClick={() => setSelectedMode("tutor")}
             >
               Tutor me
             </Button>
