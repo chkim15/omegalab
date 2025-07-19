@@ -131,7 +131,7 @@ export default function ChatInterface({
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
+    <div className="w-full max-w-2xl mx-auto">
       {!isHomePage && (
         <Card className="mb-4 h-96">
           <CardContent className="p-4 h-full">

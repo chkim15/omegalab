@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Link, useLocation } from "wouter";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useLocation } from "wouter";
 import { 
   Plus, 
   MessageSquare, 
@@ -15,12 +16,22 @@ import {
   Settings,
   BookOpen,
   MoreHorizontal,
-  Edit3
+  Edit3,
+  X,
+  User,
+  LogOut,
+  Shield,
+  Trash2,
+  MessageCircle,
+  PanelLeftClose,
+  PanelLeftOpen
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import StreamingMessage from "@/components/StreamingMessage";
+import DrawingPad from "@/components/drawing-pad";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Message {
   id: number;
@@ -39,20 +50,103 @@ interface Conversation {
 export default function Dashboard() {
   const [location, navigate] = useLocation();
   const [message, setMessage] = useState("");
+  const [messageHistory, setMessageHistory] = useState<string[]>([""]);
+  const [historyIndex, setHistoryIndex] = useState(0);
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [selectedMode, setSelectedMode] = useState<"answer" | "tutor">("tutor");
+  const [defaultMode, setDefaultMode] = useState<"answer" | "tutor">("tutor");
+  const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isSidebarHidden, setIsSidebarHidden] = useState(false);
+  const [showDrawing, setShowDrawing] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
-  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const [recognition, setRecognition] = useState<any>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<{url: string, file: File}[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { currentUser, logout } = useAuth();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!currentUser) {
+      navigate("/login");
+    }
+  }, [currentUser, navigate]);
+
+  // Get user data from Firebase
+  const userEmail = currentUser?.email || "";
+  const subscription = "Free"; // This could be enhanced to check user's subscription status
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out.",
+      });
+      navigate("/");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to log out.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Update message history when message changes
+  const updateMessageHistory = (newMessage: string) => {
+    setMessage(newMessage);
+    
+    // Only add to history if it's different from current
+    if (newMessage !== messageHistory[historyIndex]) {
+      const newHistory = messageHistory.slice(0, historyIndex + 1);
+      newHistory.push(newMessage);
+      setMessageHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+    }
+  };
+
+  // Undo functionality
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setMessage(messageHistory[newIndex]);
+    }
+  };
+
+  // Redo functionality
+  const handleRedo = () => {
+    if (historyIndex < messageHistory.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setMessage(messageHistory[newIndex]);
+    }
+  };
+
+  // Drawing completion handler
+  const handleDrawingComplete = (mathNotation: string) => {
+    // Add the extracted math notation to the current message
+    const currentText = message.trim();
+    const newText = currentText ? `${currentText} ${mathNotation}` : mathNotation;
+    updateMessageHistory(newText);
+    
+    setShowDrawing(false);
+    
+    toast({
+      title: "Drawing Converted",
+      description: "Math notation extracted from your drawing!",
+    });
+  };
 
   // Initialize speech recognition
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognitionInstance = new SpeechRecognition();
       
       recognitionInstance.continuous = false;
@@ -63,7 +157,7 @@ export default function Dashboard() {
         setIsListening(true);
       };
       
-      recognitionInstance.onresult = (event) => {
+      recognitionInstance.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setMessage(prev => prev + (prev ? ' ' : '') + transcript);
       };
@@ -72,7 +166,7 @@ export default function Dashboard() {
         setIsListening(false);
       };
       
-      recognitionInstance.onerror = (event) => {
+      recognitionInstance.onerror = (event: any) => {
         setIsListening(false);
         toast({
           title: "Speech Recognition Error",
@@ -85,17 +179,70 @@ export default function Dashboard() {
     }
   }, [toast]);
 
-  // Mock user for now - we'll replace this with real auth later
-  const userId = 1;
+  // Load settings from localStorage
+  useEffect(() => {
+    const savedMode = localStorage.getItem('defaultResponseMode') as "answer" | "tutor" | null;
+    const savedTheme = localStorage.getItem('theme') as "light" | "dark" | "system" | null;
+    
+    if (savedMode) {
+      setDefaultMode(savedMode);
+      setSelectedMode(savedMode);
+    }
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+  }, []);
 
-  // Fetch conversations
+  // Apply theme
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else if (theme === 'light') {
+      root.classList.remove('dark');
+    } else {
+      // System theme
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (prefersDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    }
+  }, [theme]);
+
+  const saveSettings = () => {
+    localStorage.setItem('defaultResponseMode', defaultMode);
+    localStorage.setItem('theme', theme);
+    setSelectedMode(defaultMode);
+    setIsSettingsOpen(false);
+  };
+
+  // Create a simple mapping between Firebase UID and numeric ID for backend compatibility
+  const getUserNumericId = (firebaseUid: string | null): number => {
+    if (!firebaseUid) return 1;
+    // Simple hash of Firebase UID to create consistent numeric ID
+    let hash = 0;
+    for (let i = 0; i < firebaseUid.length; i++) {
+      const char = firebaseUid.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash) % 1000000 + 1; // Ensure positive number between 1-1000000
+  };
+
+  const userId = currentUser?.uid ? getUserNumericId(currentUser.uid) : null;
+
+  // Fetch conversations for the current user
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery({
     queryKey: ["/api/conversations", userId],
     queryFn: async () => {
+      if (!userId) return [];
       const response = await fetch(`/api/conversations?userId=${userId}`);
       if (!response.ok) throw new Error('Failed to fetch conversations');
       return response.json();
     },
+    enabled: !!userId,
   });
 
   // Fetch messages for current conversation
@@ -117,7 +264,7 @@ export default function Dashboard() {
         body: { userId, title },
       }),
     onSuccess: (newConversation) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations", userId] });
       setCurrentConversationId(newConversation.id);
     },
   });
@@ -133,6 +280,7 @@ export default function Dashboard() {
           inputMethod: "text",
           mode: messageData.mode,
           images: messageData.images,
+          // Don't send userId - the solve endpoint doesn't need it
         },
       }),
     onSuccess: (data) => {
@@ -297,35 +445,32 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       {/* Sidebar */}
-      <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+      <div className={`${isSidebarHidden ? 'w-0 overflow-hidden' : 'w-80'} transition-all duration-300 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col`}>
         {/* Sidebar Header */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <Button
-            onClick={handleNewChat}
-            className="w-full justify-start gap-2 bg-omegalab-blue hover:bg-blue-700 text-white"
-            disabled={createConversationMutation.isPending}
-          >
-            <Plus className="h-4 w-4" />
-            New chat
-          </Button>
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="p-4">
-          <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-            <Button variant="ghost" size="sm" className="flex-1 bg-white dark:bg-gray-600 shadow-sm">
-              <MessageSquare className="h-4 w-4 mr-1" />
-              Chats
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleNewChat}
+              className="flex-1 justify-start gap-2 bg-omegalab-blue hover:bg-blue-700 text-white"
+              disabled={createConversationMutation.isPending}
+            >
+              <Plus className="h-4 w-4" />
+              New chat
             </Button>
-            <Button variant="ghost" size="sm" className="flex-1 text-gray-500">
-              <FileText className="h-4 w-4 mr-1" />
-              PDFs
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsSidebarHidden(true)}
+              className="p-2 text-gray-600 hover:bg-gray-100"
+              title="Hide sidebar"
+            >
+              <PanelLeftClose className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
         {/* Chat List */}
-        <ScrollArea className="flex-1 px-4">
+        <ScrollArea className="flex-1 px-4 pt-4">
           <div className="space-y-2">
             {conversationsLoading ? (
               <div className="text-center py-4 text-gray-500">Loading chats...</div>
@@ -359,68 +504,220 @@ export default function Dashboard() {
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <Button variant="ghost" size="sm">
-              <Settings className="h-4 w-4 mr-2" />
-              Settings & Tutorials
-              <Badge variant="secondary" className="ml-2 bg-omegalab-blue text-white">
-                1
-              </Badge>
-            </Button>
-          </div>
-          <div className="mt-2 text-xs text-gray-500">
-            More free messages in 22 hrs, 28 mins
+            <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                  <div className="flex items-center justify-between">
+                    <DialogTitle className="flex items-center gap-2">
+                      <Settings className="h-5 w-5" />
+                      Site settings
+                    </DialogTitle>
+                  </div>
+                </DialogHeader>
+                
+                <div className="space-y-6 py-4">
+                  {/* Theme Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Theme</h3>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={theme === "light" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setTheme("light")}
+                        className={theme === "light" ? "bg-gray-900 text-white" : ""}
+                      >
+                        Light
+                      </Button>
+                      <Button
+                        variant={theme === "dark" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setTheme("dark")}
+                        className={theme === "dark" ? "bg-gray-900 text-white" : ""}
+                      >
+                        Dark
+                      </Button>
+                      <Button
+                        variant={theme === "system" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setTheme("system")}
+                        className={theme === "system" ? "bg-gray-900 text-white" : ""}
+                      >
+                        System
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Response Mode Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">Response mode</h3>
+                    <p className="text-sm text-gray-600 mb-4 flex items-center gap-2">
+                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                      Choose how OmegaLab responds to your questions.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div 
+                        className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                          defaultMode === "answer" 
+                            ? "border-blue-500 bg-blue-50" 
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                        onClick={() => setDefaultMode("answer")}
+                      >
+                        <div className="bg-gray-900 text-white px-3 py-2 rounded-t-lg mb-2">
+                          <h4 className="font-semibold">Give me the answer</h4>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          Answers directly unless asked otherwise.
+                        </p>
+                      </div>
+                      <div 
+                        className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                          defaultMode === "tutor" 
+                            ? "border-blue-500 bg-blue-50" 
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                        onClick={() => setDefaultMode("tutor")}
+                      >
+                        <div className="bg-gray-900 text-white px-3 py-2 rounded-t-lg mb-2">
+                          <h4 className="font-semibold">Tutor me</h4>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          Asks leading questions instead of giving you the answer. Better for practicing and learning. Only available through our Pro model.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                  <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={saveSettings} className="bg-omegalab-blue hover:bg-blue-700">
+                    Save Settings
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
           <div className="mt-1 text-xs text-omegalab-blue">
             📈 Try Pro for free →
           </div>
         </div>
+
+        {/* User Profile Button */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-900 text-white">
+          <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" className="w-full justify-start text-white hover:bg-gray-700">
+                <User className="h-4 w-4 mr-3" />
+                <span className="truncate">{userEmail}</span>
+                <MoreHorizontal className="h-4 w-4 ml-auto" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <div className="flex items-center justify-between pr-8">
+                  <DialogTitle className="text-2xl font-bold">My Profile</DialogTitle>
+                  <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Site settings
+                      </Button>
+                    </DialogTrigger>
+                  </Dialog>
+                </div>
+              </DialogHeader>
+              
+              <div className="space-y-6 py-4">
+                {/* Log out button */}
+                <div className="flex justify-start">
+                  <Button variant="outline" className="bg-gray-900 text-white border-gray-900 hover:bg-gray-800" onClick={handleLogout}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Log out
+                  </Button>
+                </div>
+
+                {/* Account Info */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Account Info</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email
+                      </label>
+                      <p className="text-sm text-gray-900">{userEmail}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Subscription
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-gray-900">{subscription}</p>
+                        <Button variant="link" className="text-omegalab-blue p-0 h-auto text-sm">
+                          🚀 Try Pro for free →
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Manage Section */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Manage</h3>
+                  <div className="space-y-3">
+                    <Button variant="ghost" className="w-full justify-start text-omegalab-blue hover:bg-blue-50">
+                      <Shield className="h-4 w-4 mr-3" />
+                      Privacy Settings
+                    </Button>
+                    <Button variant="ghost" className="w-full justify-start text-red-600 hover:bg-red-50">
+                      <Trash2 className="h-4 w-4 mr-3" />
+                      Delete account
+                    </Button>
+                    <div className="pt-2">
+                      <p className="text-sm text-gray-600 mb-2">Problems with your account?</p>
+                      <Button variant="link" className="text-omegalab-blue p-0 h-auto text-sm">
+                        <MessageCircle className="h-4 w-4 mr-2" />
+                        Chat with us directly →
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      {/* Show Sidebar Button - appears when sidebar is hidden */}
+      {isSidebarHidden && (
+        <div className="fixed top-4 left-4 z-50">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsSidebarHidden(false)}
+            className="bg-white shadow-lg border-gray-300 hover:bg-gray-50"
+            title="Show sidebar"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        {/* Main Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Choose how you'd like OmegaLab to respond:
-            </h1>
-            <Button variant="ghost" size="sm">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">(optional)</div>
-          <div className="mt-4 flex space-x-2">
-            <Button 
-              variant={selectedMode === "answer" ? "default" : "outline"}
-              size="sm" 
-              className={selectedMode === "answer" 
-                ? "bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-800" 
-                : "text-gray-600"
-              }
-              onClick={() => setSelectedMode("answer")}
-            >
-              Give me the answer
-            </Button>
-            <Button
-              variant={selectedMode === "tutor" ? "default" : "outline"}
-              size="sm"
-              className={selectedMode === "tutor" 
-                ? "bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-800"
-                : "text-gray-600"
-              }
-              onClick={() => setSelectedMode("tutor")}
-            >
-              Tutor me
-            </Button>
-            <Button variant="ghost" size="sm">
-              <BookOpen className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
         {/* Messages Area */}
         <ScrollArea className="flex-1 p-4">
-          <div className="max-w-4xl mx-auto space-y-4">
+          <div className="max-w-2xl mx-auto space-y-4">
             {messagesLoading ? (
               <div className="text-center py-8 text-gray-500">Loading messages...</div>
             ) : messages.length === 0 ? (
@@ -495,18 +792,34 @@ export default function Dashboard() {
         </ScrollArea>
 
         {/* Message Input */}
-        <div className="bg-black text-white p-4">
-          <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto">
+        <div className="bg-white border-t border-gray-200 p-4">
+          <form onSubmit={handleSendMessage} className="max-w-2xl mx-auto">
             {/* Top toolbar */}
             <div className="flex items-center justify-between mb-4">
               {/* Left: Undo/Redo */}
               <div className="flex items-center space-x-2">
-                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  className={`text-gray-600 hover:bg-gray-100 ${historyIndex <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={handleUndo}
+                  disabled={historyIndex <= 0}
+                  title="Undo"
+                >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                   </svg>
                 </Button>
-                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  className={`text-gray-600 hover:bg-gray-100 ${historyIndex >= messageHistory.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={handleRedo}
+                  disabled={historyIndex >= messageHistory.length - 1}
+                  title="Redo"
+                >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
                   </svg>
@@ -519,18 +832,18 @@ export default function Dashboard() {
                   type="button" 
                   variant="ghost" 
                   size="sm" 
-                  className={`text-white hover:bg-gray-700 ${isListening ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                  className={`text-gray-600 hover:bg-gray-100 ${isListening ? 'bg-red-100 text-red-600 hover:bg-red-200' : ''}`}
                   onClick={handleSpeechToText}
                   disabled={!recognition}
                 >
                   <Mic className={`h-4 w-4 ${isListening ? 'animate-pulse' : ''}`} />
                 </Button>
-                <div className="h-6 w-px bg-gray-600"></div>
+                <div className="h-6 w-px bg-gray-300"></div>
                 <Button 
                   type="button" 
                   variant="ghost" 
                   size="sm" 
-                  className={`text-white hover:bg-gray-700 ${isUploading ? 'opacity-50' : ''}`}
+                  className={`text-gray-600 hover:bg-gray-100 ${isUploading ? 'opacity-50' : ''}`}
                   disabled={isUploading}
                   onClick={() => document.getElementById('image-upload')?.click()}
                 >
@@ -545,18 +858,18 @@ export default function Dashboard() {
                   className="hidden"
                   onChange={handleFileSelect}
                 />
-                <div className="h-6 w-px bg-gray-600"></div>
-                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                <div className="h-6 w-px bg-gray-300"></div>
+                <Button type="button" variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100" onClick={() => setShowDrawing(true)}>
                   <Edit3 className="h-4 w-4" />
                 </Button>
-                <div className="h-6 w-px bg-gray-600"></div>
-                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                <div className="h-6 w-px bg-gray-300"></div>
+                <Button type="button" variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
                   </svg>
                 </Button>
-                <div className="h-6 w-px bg-gray-600"></div>
-                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                <div className="h-6 w-px bg-gray-300"></div>
+                <Button type="button" variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </div>
@@ -591,14 +904,14 @@ export default function Dashboard() {
             <div className="relative">
               <Input
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => updateMessageHistory(e.target.value)}
                 onPaste={handlePaste}
                 placeholder={isUploading ? "Processing images..." : "Enter a message... (\\ for math) or paste an image"}
-                className="w-full bg-white text-black border-0 rounded-lg px-4 py-3 pr-20 focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="w-full bg-white text-black border border-gray-300 rounded-lg px-4 py-3 pr-48 focus-visible:ring-2 focus-visible:ring-omegalab-blue focus-visible:ring-offset-0"
                 disabled={sendMessageMutation.isPending || isUploading}
               />
               {isUploading && (
-                <div className="absolute right-24 top-1/2 transform -translate-y-1/2">
+                <div className="absolute right-48 top-1/2 transform -translate-y-1/2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                 </div>
               )}
@@ -616,20 +929,47 @@ export default function Dashboard() {
                 <Button
                   type="submit"
                   size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-omegalab-blue hover:bg-blue-700 text-white"
                   disabled={(message.trim() === "" && uploadedImages.length === 0) || sendMessageMutation.isPending || isUploading}
                 >
                   <Send className="h-4 w-4" />
                 </Button>
+                <Button 
+                  type="button"
+                  variant={selectedMode === "answer" ? "default" : "outline"}
+                  size="sm" 
+                  className={selectedMode === "answer" 
+                    ? "bg-gray-900 text-white hover:bg-gray-800" 
+                    : "text-gray-600 border-gray-300"
+                  }
+                  onClick={() => setSelectedMode("answer")}
+                >
+                  Answer
+                </Button>
+                <Button
+                  type="button"
+                  variant={selectedMode === "tutor" ? "default" : "outline"}
+                  size="sm"
+                  className={selectedMode === "tutor" 
+                    ? "bg-gray-900 text-white hover:bg-gray-800"
+                    : "text-gray-600 border-gray-300"
+                  }
+                  onClick={() => setSelectedMode("tutor")}
+                >
+                  Tutor
+                </Button>
               </div>
             </div>
             
-            <div className="text-xs text-gray-400 mt-2">
+            <div className="text-xs text-gray-500 mt-2">
               Shift + Enter for new line
             </div>
           </form>
         </div>
       </div>
+      {showDrawing && (
+        <DrawingPad onComplete={handleDrawingComplete} onCancel={() => setShowDrawing(false)} />
+      )}
     </div>
   );
 }

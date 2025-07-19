@@ -4,6 +4,7 @@ import UniversityCarousel from "@/components/university-carousel";
 import FeaturesSection from "@/components/features-section";
 import TestimonialsSection from "@/components/testimonials-section";
 import FaqSection from "@/components/faq-section";
+import PricingSection from "@/components/pricing-section";
 import Footer from "@/components/footer";
 
 export default function Home() {
@@ -15,6 +16,7 @@ export default function Home() {
       <FeaturesSection />
       <TestimonialsSection />
       <FaqSection />
+      <PricingSection />
       <Footer />
     </div>
   );

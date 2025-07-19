@@ -128,7 +128,7 @@ export default function Chat() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <div className="pt-20">
+      <div className="pt-20 px-4">
         <ChatInterface
           messages={messages}
           onSendMessage={(problem, inputMethod) =>
