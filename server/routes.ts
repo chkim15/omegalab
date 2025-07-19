@@ -104,16 +104,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Solve the problem
       const solution = await solveMathProblem(problem, inputMethod, mode);
       
-      // Format the response
-      const response = `**Solution:** ${solution.solution}
+      // Format the response with better math notation
+      const formatMathText = (text: string) => {
+        return text
+          .replace(/x\^2/g, '$x^2$')
+          .replace(/x\^(\d+)/g, '$x^{$1}$')
+          .replace(/(\d+)x/g, '$1x$')
+          .replace(/\+\s*(\d+)x/g, ' + $1x')
+          .replace(/\-\s*(\d+)x/g, ' - $1x')
+          .replace(/=\s*0/g, ' = 0')
+          .replace(/x\s*=\s*([^,\s]+)/g, '$x = $1$')
+          .replace(/√(\d+)/g, '$\\sqrt{$1}$')
+          .replace(/√\(([^)]+)\)/g, '$\\sqrt{$1}$')
+          .replace(/±/g, '$\\pm$')
+          .replace(/(\-?\d+)\s*±\s*(.+?)i/g, '$1 \\pm $2i$');
+      };
 
-**Step-by-step explanation:**
-${solution.steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}
+      const response = mode === "answer" 
+        ? `${formatMathText(solution.explanation)}
 
-**Explanation:**
-${solution.explanation}
+${solution.steps.map((step, index) => `**Step ${index + 1}:** ${formatMathText(step)}`).join('\n\n')}
 
-*Confidence: ${Math.round(solution.confidence * 100)}%*`;
+**Solution:** ${formatMathText(solution.solution)}
+
+*Confidence: ${Math.round(solution.confidence * 100)}%*`
+        : `${formatMathText(solution.explanation)}
+
+${solution.steps.map((step, index) => `**Hint ${index + 1}:** ${formatMathText(step)}`).join('\n\n')}
+
+${formatMathText(solution.solution)}
+
+*Let me know if you need more help!*`;
 
       // Save AI response
       await storage.createMessage({

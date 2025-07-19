@@ -19,6 +19,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import StreamingMessage from "@/components/StreamingMessage";
 
 interface Message {
   id: number;
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const [message, setMessage] = useState("");
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [selectedMode, setSelectedMode] = useState<"answer" | "tutor">("tutor");
+  const [streamingMessageId, setStreamingMessageId] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -91,11 +93,15 @@ export default function Dashboard() {
           mode: selectedMode,
         },
       }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({
         queryKey: ["/api/conversations", currentConversationId, "messages"],
       });
       setMessage("");
+      // Trigger streaming for the most recent assistant message
+      setTimeout(() => {
+        setStreamingMessageId(-1); // Use -1 to indicate latest message should stream
+      }, 100);
     },
     onError: (error) => {
       toast({
@@ -276,15 +282,43 @@ export default function Dashboard() {
               </div>
             ) : (
               messages.map((msg: Message) => (
-                <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-3xl p-4 rounded-lg ${
-                      msg.role === "user"
-                        ? "bg-omegalab-blue text-white"
-                        : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-                    }`}
-                  >
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} mb-4`}>
+                  <div className="flex items-start space-x-3 max-w-3xl">
+                    {msg.role === "assistant" && (
+                      <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Θ</span>
+                      </div>
+                    )}
+                    <div
+                      className={`p-4 rounded-lg ${
+                        msg.role === "user"
+                          ? "bg-blue-50 dark:bg-blue-900/20 text-gray-900 dark:text-white ml-auto"
+                          : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                      }`}
+                    >
+                      {msg.role === "user" ? (
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className="font-medium text-gray-700 dark:text-gray-300">You</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className="font-medium text-gray-700 dark:text-gray-300">Thetawise</span>
+                        </div>
+                      )}
+                      {msg.role === "assistant" ? (
+                        <StreamingMessage 
+                          content={msg.content} 
+                          isStreaming={streamingMessageId === -1 && msg.id === Math.max(...messages.filter(m => m.role === "assistant").map(m => m.id))}
+                        />
+                      ) : (
+                        <div className="text-gray-900 dark:text-white">{msg.content}</div>
+                      )}
+                    </div>
+                    {msg.role === "user" && (
+                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-sm font-medium text-blue-600 dark:text-blue-300">You</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
