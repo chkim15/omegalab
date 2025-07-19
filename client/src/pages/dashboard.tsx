@@ -45,7 +45,7 @@ export default function Dashboard() {
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<{url: string, file: File}[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -185,51 +185,14 @@ export default function Dashboard() {
       return;
     }
 
-    setIsUploading(true);
-    try {
-      // Convert image to base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          // Remove data:image/...;base64, prefix
-          const base64Data = result.split(',')[1];
-          resolve(base64Data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      // Analyze the image to extract math content
-      const response = await fetch('/api/analyze-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ image: base64 }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to analyze image');
-      }
-
-      const data = await response.json();
-      setMessage(prev => prev + (prev ? '\n' : '') + data.extractedText);
-      
-      toast({
-        title: "Image Analyzed",
-        description: "Math content extracted and added to your message.",
-      });
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      toast({
-        title: "Upload Error",
-        description: "Failed to process image. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-    }
+    // Create preview URL
+    const url = URL.createObjectURL(file);
+    setUploadedImages(prev => [...prev, { url, file }]);
+    
+    toast({
+      title: "Image Added",
+      description: "Image will be analyzed when you send the message.",
+    });
   };
 
   const handlePaste = async (e: React.ClipboardEvent) => {
@@ -258,22 +221,67 @@ export default function Dashboard() {
     e.target.value = '';
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
+    if (!message.trim() && uploadedImages.length === 0) return;
+
+    let finalMessage = message;
+
+    // Process any uploaded images
+    if (uploadedImages.length > 0) {
+      setIsUploading(true);
+      try {
+        for (const imageData of uploadedImages) {
+          // Convert image to base64
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result as string;
+              const base64Data = result.split(',')[1];
+              resolve(base64Data);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(imageData.file);
+          });
+
+          // Analyze the image
+          const response = await fetch('/api/analyze-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64 }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            finalMessage += (finalMessage ? '\n\n' : '') + `[Image content: ${data.extractedText}]`;
+          }
+        }
+
+        // Clean up image URLs
+        uploadedImages.forEach(img => URL.revokeObjectURL(img.url));
+        setUploadedImages([]);
+      } catch (error) {
+        console.error('Error processing images:', error);
+        toast({
+          title: "Image Processing Error",
+          description: "Some images couldn't be processed, but message will be sent anyway.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsUploading(false);
+      }
+    }
 
     if (!currentConversationId) {
-      // Create new conversation first
-      const title = message.length > 50 ? message.substring(0, 50) + "..." : message;
+      const title = finalMessage.length > 50 ? finalMessage.substring(0, 50) + "..." : finalMessage;
       createConversationMutation.mutate(title);
-      // The message will be sent after conversation is created
       setTimeout(() => {
         if (currentConversationId) {
-          sendMessageMutation.mutate(message);
+          sendMessageMutation.mutate(finalMessage);
         }
       }, 100);
     } else {
-      sendMessageMutation.mutate(message);
+      sendMessageMutation.mutate(finalMessage);
     }
   };
 
@@ -535,13 +543,38 @@ export default function Dashboard() {
               </div>
             </div>
             
+            {/* Image previews */}
+            {uploadedImages.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {uploadedImages.map((img, index) => (
+                  <div key={index} className="relative">
+                    <img 
+                      src={img.url} 
+                      alt="Upload preview" 
+                      className="w-16 h-16 object-cover rounded border"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        URL.revokeObjectURL(img.url);
+                        setUploadedImages(prev => prev.filter((_, i) => i !== index));
+                      }}
+                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
             {/* Input area */}
             <div className="relative">
               <Input
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onPaste={handlePaste}
-                placeholder={isUploading ? "Processing image..." : "Enter a message... (\\ for math) or paste an image"}
+                placeholder={isUploading ? "Processing images..." : "Enter a message... (\\ for math) or paste an image"}
                 className="w-full bg-white text-black border-0 rounded-lg px-4 py-3 pr-20 focus-visible:ring-0 focus-visible:ring-offset-0"
                 disabled={sendMessageMutation.isPending || isUploading}
               />
@@ -565,7 +598,7 @@ export default function Dashboard() {
                   type="submit"
                   size="sm"
                   className="bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={!message.trim() || sendMessageMutation.isPending}
+                  disabled={(!message.trim() && uploadedImages.length === 0) || sendMessageMutation.isPending || isUploading}
                 >
                   <Send className="h-4 w-4" />
                 </Button>
