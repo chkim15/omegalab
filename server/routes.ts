@@ -110,8 +110,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { problem, conversationId, inputMethod = "text", mode = "answer", images } = req.body;
       
-      if (!problem || !conversationId) {
-        return res.status(400).json({ message: "Problem and conversation ID required" });
+      if ((!problem || problem.trim() === "") && (!images || images.length === 0)) {
+        return res.status(400).json({ message: "Problem text or images required" });
+      }
+      
+      if (!conversationId) {
+        return res.status(400).json({ message: "Conversation ID required" });
       }
 
       // Save user message
@@ -121,7 +125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: problem,
         metadata: { 
           inputMethod,
-          images: req.body.images || null
+          images: images || null
         }
       });
 

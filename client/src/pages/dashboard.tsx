@@ -139,7 +139,6 @@ export default function Dashboard() {
       queryClient.invalidateQueries({
         queryKey: ["/api/conversations", currentConversationId, "messages"],
       });
-      setMessage("");
       // Trigger streaming for the most recent assistant message
       setTimeout(() => {
         setStreamingMessageId(-1); // Use -1 to indicate latest message should stream
@@ -189,11 +188,6 @@ export default function Dashboard() {
     // Create preview URL
     const url = URL.createObjectURL(file);
     setUploadedImages(prev => [...prev, { url, file }]);
-    
-    toast({
-      title: "Image Added",
-      description: "Image will be analyzed when you send the message.",
-    });
   };
 
   const handlePaste = async (e: React.ClipboardEvent) => {
@@ -224,12 +218,12 @@ export default function Dashboard() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() && uploadedImages.length === 0) return;
+    if (message.trim() === "" && uploadedImages.length === 0) return;
 
-    let finalMessage = message;
+    let finalMessage = message.trim() || "";
+    let imageData = [];
 
     // Process any uploaded images and store them with the message
-    let imageData = [];
     if (uploadedImages.length > 0) {
       setIsUploading(true);
       try {
@@ -245,19 +239,13 @@ export default function Dashboard() {
             reader.readAsDataURL(imageItem.file);
           });
 
-          // No need to analyze separately - OpenAI will process the image directly
-
-          // Store image data for display
+          // Store image data for display and processing
           imageData.push({
             url: base64,
             name: imageItem.file.name,
             size: imageItem.file.size
           });
         }
-
-        // Clean up image URLs
-        uploadedImages.forEach(img => URL.revokeObjectURL(img.url));
-        setUploadedImages([]);
       } catch (error) {
         console.error('Error processing images:', error);
         toast({
@@ -270,13 +258,16 @@ export default function Dashboard() {
       }
     }
 
+    // Determine the message content
+    const messageContent = finalMessage || (imageData.length > 0 ? "Please solve the math problem in the attached image" : "");
+    
     if (!currentConversationId) {
-      const title = (finalMessage || "Image problem").length > 50 ? (finalMessage || "Image problem").substring(0, 50) + "..." : (finalMessage || "Image problem");
+      const title = messageContent.length > 50 ? messageContent.substring(0, 50) + "..." : messageContent || "Math Problem";
       createConversationMutation.mutate(title);
       setTimeout(() => {
         if (currentConversationId) {
           sendMessageMutation.mutate({ 
-            problem: finalMessage || "Please solve the math problem in the attached image", 
+            problem: messageContent, 
             mode: selectedMode,
             images: imageData.length > 0 ? imageData : undefined
           });
@@ -284,11 +275,16 @@ export default function Dashboard() {
       }, 100);
     } else {
       sendMessageMutation.mutate({ 
-        problem: finalMessage || "Please solve the math problem in the attached image", 
+        problem: messageContent, 
         mode: selectedMode,
         images: imageData.length > 0 ? imageData : undefined
       });
     }
+
+    // Clear input and images after sending
+    setMessage("");
+    uploadedImages.forEach(img => URL.revokeObjectURL(img.url));
+    setUploadedImages([]);
   };
 
   // Auto-select first conversation if none selected
@@ -621,7 +617,7 @@ export default function Dashboard() {
                   type="submit"
                   size="sm"
                   className="bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={(!message.trim() && uploadedImages.length === 0) || sendMessageMutation.isPending || isUploading}
+                  disabled={(message.trim() === "" && uploadedImages.length === 0) || sendMessageMutation.isPending || isUploading}
                 >
                   <Send className="h-4 w-4" />
                 </Button>
