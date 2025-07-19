@@ -105,7 +105,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const solution = await solveMathProblem(problem, inputMethod, mode);
       
       // Format the response with better math notation
-      const formatMathText = (text: string) => {
+      const formatMathText = (text: any) => {
+        if (typeof text !== 'string') {
+          text = String(text || '');
+        }
         return text
           .replace(/x\^2/g, '$x^2$')
           .replace(/x\^(\d+)/g, '$x^{$1}$')
@@ -123,14 +126,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const response = mode === "answer" 
         ? `${formatMathText(solution.explanation)}
 
-${solution.steps.map((step, index) => `**Step ${index + 1}:** ${formatMathText(step)}`).join('\n\n')}
+${Array.isArray(solution.steps) ? solution.steps.map((step, index) => `**Step ${index + 1}:** ${formatMathText(step)}`).join('\n\n') : ''}
 
 **Solution:** ${formatMathText(solution.solution)}
 
 *Confidence: ${Math.round(solution.confidence * 100)}%*`
         : `${formatMathText(solution.explanation)}
 
-${solution.steps.map((step, index) => `**Hint ${index + 1}:** ${formatMathText(step)}`).join('\n\n')}
+${Array.isArray(solution.steps) ? solution.steps.map((step, index) => `**Hint ${index + 1}:** ${formatMathText(step)}`).join('\n\n') : ''}
 
 ${formatMathText(solution.solution)}
 
