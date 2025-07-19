@@ -42,8 +42,46 @@ export default function Dashboard() {
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [selectedMode, setSelectedMode] = useState<"answer" | "tutor">("tutor");
   const [streamingMessageId, setStreamingMessageId] = useState<number | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognitionInstance = new SpeechRecognition();
+      
+      recognitionInstance.continuous = false;
+      recognitionInstance.interimResults = false;
+      recognitionInstance.lang = 'en-US';
+      
+      recognitionInstance.onstart = () => {
+        setIsListening(true);
+      };
+      
+      recognitionInstance.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setMessage(prev => prev + (prev ? ' ' : '') + transcript);
+      };
+      
+      recognitionInstance.onend = () => {
+        setIsListening(false);
+      };
+      
+      recognitionInstance.onerror = (event) => {
+        setIsListening(false);
+        toast({
+          title: "Speech Recognition Error",
+          description: "Could not recognize speech. Please try again.",
+          variant: "destructive",
+        });
+      };
+      
+      setRecognition(recognitionInstance);
+    }
+  }, [toast]);
 
   // Mock user for now - we'll replace this with real auth later
   const userId = 1;
@@ -116,6 +154,23 @@ export default function Dashboard() {
   const handleNewChat = () => {
     const title = `Chat ${new Date().toLocaleDateString()}`;
     createConversationMutation.mutate(title);
+  };
+
+  const handleSpeechToText = () => {
+    if (!recognition) {
+      toast({
+        title: "Speech Recognition Not Supported",
+        description: "Your browser doesn't support speech recognition.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isListening) {
+      recognition.stop();
+    } else {
+      recognition.start();
+    }
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -348,8 +403,15 @@ export default function Dashboard() {
               
               {/* Right: Input tools */}
               <div className="flex items-center space-x-3">
-                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
-                  <Mic className="h-4 w-4" />
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  className={`text-white hover:bg-gray-700 ${isListening ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                  onClick={handleSpeechToText}
+                  disabled={!recognition}
+                >
+                  <Mic className={`h-4 w-4 ${isListening ? 'animate-pulse' : ''}`} />
                 </Button>
                 <div className="h-6 w-px bg-gray-600"></div>
                 <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
