@@ -8,6 +8,7 @@ import Chat from "@/pages/chat";
 import Pricing from "@/pages/pricing";
 import Login from "@/pages/login";
 import SignUp from "@/pages/signup";
+import Dashboard from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/pricing" component={Pricing} />
       <Route path="/login" component={Login} />
       <Route path="/signup" component={SignUp} />
+      <Route path="/dashboard" component={Dashboard} />
       <Route component={NotFound} />
     </Switch>
   );

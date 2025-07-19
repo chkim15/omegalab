@@ -33,8 +33,9 @@ export default function Login() {
           title: "Success",
           description: "Logged in successfully!",
         });
-        // Redirect to home or dashboard
-        window.location.href = "/chat";
+        // Store user data and redirect to dashboard
+        localStorage.setItem('user', JSON.stringify(data.user));
+        window.location.href = "/dashboard";
       } else {
         const error = await response.json();
         toast({
