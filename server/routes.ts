@@ -84,6 +84,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Analyze image endpoint
+  app.post("/api/analyze-image", async (req, res) => {
+    try {
+      const { image } = req.body;
+      
+      if (!image) {
+        return res.status(400).json({ error: "No image data provided" });
+      }
+
+      const extractedText = await analyzeImageProblem(image);
+      
+      res.json({ extractedText });
+    } catch (error) {
+      console.error("Error analyzing image:", error);
+      res.status(500).json({ 
+        error: "Failed to analyze image",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Math solving routes
   app.post("/api/solve", async (req, res) => {
     try {

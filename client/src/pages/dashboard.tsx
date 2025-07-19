@@ -44,6 +44,8 @@ export default function Dashboard() {
   const [streamingMessageId, setStreamingMessageId] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -171,6 +173,89 @@ export default function Dashboard() {
     } else {
       recognition.start();
     }
+  };
+
+  const handleImageUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid File",
+        description: "Please select an image file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Convert image to base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Remove data:image/...;base64, prefix
+          const base64Data = result.split(',')[1];
+          resolve(base64Data);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Analyze the image to extract math content
+      const response = await fetch('/api/analyze-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ image: base64 }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze image');
+      }
+
+      const data = await response.json();
+      setMessage(prev => prev + (prev ? '\n' : '') + data.extractedText);
+      
+      toast({
+        title: "Image Analyzed",
+        description: "Math content extracted and added to your message.",
+      });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: "Upload Error",
+        description: "Failed to process image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          await handleImageUpload(file);
+        }
+        break;
+      }
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleImageUpload(file);
+    }
+    // Reset input
+    e.target.value = '';
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -414,11 +499,25 @@ export default function Dashboard() {
                   <Mic className={`h-4 w-4 ${isListening ? 'animate-pulse' : ''}`} />
                 </Button>
                 <div className="h-6 w-px bg-gray-600"></div>
-                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  className={`text-white hover:bg-gray-700 ${isUploading ? 'opacity-50' : ''}`}
+                  disabled={isUploading}
+                  onClick={() => document.getElementById('image-upload')?.click()}
+                >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </Button>
+                <input
+                  id="image-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
                 <div className="h-6 w-px bg-gray-600"></div>
                 <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
                   <Edit3 className="h-4 w-4" />
@@ -441,10 +540,16 @@ export default function Dashboard() {
               <Input
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Enter a message... (\\ for math)"
+                onPaste={handlePaste}
+                placeholder={isUploading ? "Processing image..." : "Enter a message... (\\ for math) or paste an image"}
                 className="w-full bg-white text-black border-0 rounded-lg px-4 py-3 pr-20 focus-visible:ring-0 focus-visible:ring-offset-0"
-                disabled={sendMessageMutation.isPending}
+                disabled={sendMessageMutation.isPending || isUploading}
               />
+              {isUploading && (
+                <div className="absolute right-24 top-1/2 transform -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                </div>
+              )}
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
                 <Button type="button" variant="ghost" size="sm" className="text-gray-500 hover:text-gray-700">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
