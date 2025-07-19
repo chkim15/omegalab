@@ -56,7 +56,7 @@ export default function Pricing() {
               </Card>
 
               {/* Pro Plan */}
-              <Card className="border-2 border-thetawise-blue bg-thetawise-blue text-white relative">
+              <Card className="border-2 border-omegalab-blue bg-omegalab-blue text-white relative">
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-orange-500 text-white px-4 py-1 rounded-full text-sm font-semibold">
                   Most Popular
                 </div>
@@ -91,7 +91,7 @@ export default function Pricing() {
                       <span>...and everything in Free</span>
                     </div>
                   </div>
-                  <Button className="w-full bg-white text-thetawise-blue hover:bg-gray-100">
+                  <Button className="w-full bg-white text-omegalab-blue hover:bg-gray-100">
                     Create account
                   </Button>
                 </CardContent>

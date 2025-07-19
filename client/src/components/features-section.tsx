@@ -7,7 +7,7 @@ export default function FeaturesSection() {
       title: "Upload from anywhere",
       description: "Take photos, drop screenshots, drag files, paste images",
       image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=200",
-      color: "bg-thetawise-blue",
+      color: "bg-omegalab-blue",
     },
     {
       icon: FileText,
@@ -37,7 +37,7 @@ export default function FeaturesSection() {
       <div className="max-w-6xl mx-auto px-4">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-bold text-gray-900 mb-4">Upload, Select, Speak, Draw</h2>
-          <p className="text-xl text-gray-600">Thetawise makes writing math simple.</p>
+          <p className="text-xl text-gray-600">OmegaLab makes writing math simple.</p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">

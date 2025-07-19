@@ -1,8 +1,8 @@
-# Thetawise - AI Math Tutor
+# OmegaLab - AI Math Tutor
 
 ## Overview
 
-Thetawise is a full-stack web application that serves as an AI-powered math tutor. The application provides multiple input methods for mathematical problems including text input, voice recognition, image uploads, and drawing capabilities. It uses OpenAI's GPT-4o model to provide step-by-step solutions and explanations for mathematical problems.
+OmegaLab is a full-stack web application that serves as an AI-powered math tutor. The application provides multiple input methods for mathematical problems including text input, voice recognition, image uploads, and drawing capabilities. It uses OpenAI's GPT-4o model to provide step-by-step solutions and explanations for mathematical problems.
 
 ## User Preferences
 

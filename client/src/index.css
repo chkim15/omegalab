@@ -23,8 +23,8 @@
   --destructive-foreground: hsl(60, 9.1%, 97.8%);
   --ring: hsl(20, 14.3%, 4.1%);
   --radius: 0.5rem;
-  --thetawise-blue: hsl(207, 90%, 54%);
-  --thetawise-dark: hsl(220, 26%, 14%);
+  --omegalab-blue: hsl(207, 90%, 54%);
+  --omegalab-dark: hsl(220, 26%, 14%);
 }
 
 .dark {
@@ -106,31 +106,31 @@
     }
   }
 
-  .bg-thetawise-blue {
-    background-color: var(--thetawise-blue);
+  .bg-omegalab-blue {
+    background-color: var(--omegalab-blue);
   }
 
-  .text-thetawise-blue {
-    color: var(--thetawise-blue);
+  .text-omegalab-blue {
+    color: var(--omegalab-blue);
   }
 
-  .bg-thetawise-dark {
-    background-color: var(--thetawise-dark);
+  .bg-omegalab-dark {
+    background-color: var(--omegalab-dark);
   }
 
-  .text-thetawise-dark {
-    color: var(--thetawise-dark);
+  .text-omegalab-dark {
+    color: var(--omegalab-dark);
   }
 
-  .border-thetawise-blue {
-    border-color: var(--thetawise-blue);
+  .border-omegalab-blue {
+    border-color: var(--omegalab-blue);
   }
 
-  .hover\:bg-thetawise-blue:hover {
-    background-color: var(--thetawise-blue);
+  .hover\:bg-omegalab-blue:hover {
+    background-color: var(--omegalab-blue);
   }
 
-  .hover\:text-thetawise-blue:hover {
-    color: var(--thetawise-blue);
+  .hover\:text-omegalab-blue:hover {
+    color: var(--omegalab-blue);
   }
 }

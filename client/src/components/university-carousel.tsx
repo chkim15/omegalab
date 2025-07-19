@@ -9,11 +9,11 @@ export default function UniversityCarousel() {
   ];
 
   return (
-    <section className="bg-thetawise-dark py-16">
+    <section className="bg-omegalab-dark py-16">
       <div className="max-w-6xl mx-auto px-4">
         <div className="text-center mb-12">
           <p className="text-white text-lg">
-            Trusted by <span className="text-thetawise-blue font-semibold">310,624</span> 
+            Trusted by <span className="text-omegalab-blue font-semibold">310,624</span> 
             students from top universities.
           </p>
         </div>

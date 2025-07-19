@@ -110,7 +110,7 @@ export default function DrawingPad({ onComplete, onCancel }: DrawingPadProps) {
               <Button variant="outline" onClick={onCancel}>
                 Cancel
               </Button>
-              <Button onClick={handleComplete} className="bg-thetawise-blue hover:bg-blue-700">
+              <Button onClick={handleComplete} className="bg-omegalab-blue hover:bg-blue-700">
                 <Check className="h-4 w-4 mr-2" />
                 Done
               </Button>

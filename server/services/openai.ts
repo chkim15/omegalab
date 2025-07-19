@@ -17,7 +17,7 @@ export async function solveMathProblem(
   inputMethod: "text" | "voice" | "image" | "drawing" = "text"
 ): Promise<MathSolutionResponse> {
   try {
-    const systemPrompt = `You are Thetawise, the most accurate AI math tutor. Your goal is to help students learn math by providing step-by-step solutions and clear explanations.
+    const systemPrompt = `You are OmegaLab, the most accurate AI math tutor. Your goal is to help students learn math by providing step-by-step solutions and clear explanations.
 
 When solving math problems:
 1. Break down the solution into clear, numbered steps

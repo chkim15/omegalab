@@ -7,10 +7,10 @@ export default function HeroSection() {
         <div className="mb-8">
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
             Your AI<br />
-            <span className="text-thetawise-blue">Math Tutor</span>
+            <span className="text-omegalab-blue">Math Tutor</span>
           </h1>
           <p className="text-lg md:text-xl text-gray-600 mb-2">
-            Conquer your math class with <strong>Thetawise</strong>,
+            Conquer your math class with <strong>OmegaLab</strong>,
           </p>
           <p className="text-lg md:text-xl text-gray-600">
             the most accurate AI tutor.
