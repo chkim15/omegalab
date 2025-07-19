@@ -14,7 +14,8 @@ import {
   Send,
   Settings,
   BookOpen,
-  MoreHorizontal
+  MoreHorizontal,
+  Edit3
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -327,32 +328,84 @@ export default function Dashboard() {
         </ScrollArea>
 
         {/* Message Input */}
-        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4">
+        <div className="bg-black text-white p-4">
           <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto">
-            <div className="flex items-center space-x-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-3">
-              <Button type="button" variant="ghost" size="sm" className="shrink-0">
-                <Mic className="h-4 w-4" />
-              </Button>
-              <Button type="button" variant="ghost" size="sm" className="shrink-0">
-                <Image className="h-4 w-4" />
-              </Button>
+            {/* Top toolbar */}
+            <div className="flex items-center justify-between mb-4">
+              {/* Left: Undo/Redo */}
+              <div className="flex items-center space-x-2">
+                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                  </svg>
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+                  </svg>
+                </Button>
+              </div>
+              
+              {/* Right: Input tools */}
+              <div className="flex items-center space-x-3">
+                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                  <Mic className="h-4 w-4" />
+                </Button>
+                <div className="h-6 w-px bg-gray-600"></div>
+                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </Button>
+                <div className="h-6 w-px bg-gray-600"></div>
+                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                  <Edit3 className="h-4 w-4" />
+                </Button>
+                <div className="h-6 w-px bg-gray-600"></div>
+                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                  </svg>
+                </Button>
+                <div className="h-6 w-px bg-gray-600"></div>
+                <Button type="button" variant="ghost" size="sm" className="text-white hover:bg-gray-700">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Input area */}
+            <div className="relative">
               <Input
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Enter a message... (\\ for math)"
-                className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="w-full bg-white text-black border-0 rounded-lg px-4 py-3 pr-20 focus-visible:ring-0 focus-visible:ring-offset-0"
                 disabled={sendMessageMutation.isPending}
               />
-              <Button
-                type="submit"
-                size="sm"
-                className="shrink-0 bg-omegalab-blue hover:bg-blue-700"
-                disabled={!message.trim() || sendMessageMutation.isPending}
-              >
-                <Send className="h-4 w-4" />
-              </Button>
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+                <Button type="button" variant="ghost" size="sm" className="text-gray-500 hover:text-gray-700">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="text-gray-500 hover:text-gray-700">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={!message.trim() || sendMessageMutation.isPending}
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-            <div className="text-xs text-gray-500 mt-2 text-center">
+            
+            <div className="text-xs text-gray-400 mt-2">
               Shift + Enter for new line
             </div>
           </form>

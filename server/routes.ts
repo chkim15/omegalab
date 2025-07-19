@@ -128,19 +128,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .trim();
       };
 
+      // Simple formatting without complex LaTeX
+      const formatSteps = (steps: string[], mode: string) => {
+        if (!Array.isArray(steps) || steps.length === 0) return '';
+        const label = mode === "answer" ? "Step" : "Hint";
+        return steps.map((step, index) => `**${label} ${index + 1}:** ${step}`).join('\n\n');
+      };
+
       const response = mode === "answer" 
-        ? `${formatMathText(solution.explanation)}
+        ? `${solution.explanation}
 
-${Array.isArray(solution.steps) && solution.steps.length > 0 ? solution.steps.map((step, index) => `**Step ${index + 1}:** ${formatMathText(step)}`).join('\n\n') : ''}
+${formatSteps(solution.steps, mode)}
 
-**Solution:** ${formatMathText(solution.solution)}
+**Solution:** ${solution.solution}
 
 *Confidence: ${Math.round(solution.confidence * 100)}%*`
-        : `${formatMathText(solution.explanation)}
+        : `${solution.explanation}
 
-${Array.isArray(solution.steps) && solution.steps.length > 0 ? solution.steps.map((step, index) => `**Hint ${index + 1}:** ${formatMathText(step)}`).join('\n\n') : ''}
+${formatSteps(solution.steps, mode)}
 
-${formatMathText(solution.solution)}
+${solution.solution}
 
 *Let me know if you need more help!*`;
 
