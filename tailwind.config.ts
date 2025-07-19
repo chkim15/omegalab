@@ -61,6 +61,10 @@ export default {
           border: "var(--sidebar-border)",
           ring: "var(--sidebar-ring)",
         },
+        omegalab: {
+          blue: "var(--omegalab-blue)",
+          dark: "var(--omegalab-dark)",
+        },
       },
       keyframes: {
         "accordion-down": {

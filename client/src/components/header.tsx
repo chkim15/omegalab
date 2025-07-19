@@ -27,9 +27,11 @@ export default function Header() {
           </Link>
         </nav>
         
-        <Button className="bg-white text-omegalab-dark hover:bg-gray-100">
-          Log In
-        </Button>
+        <Link href="/login">
+          <Button className="bg-white text-omegalab-dark hover:bg-gray-100">
+            Log In
+          </Button>
+        </Link>
       </div>
     </header>
   );

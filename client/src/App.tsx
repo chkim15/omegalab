@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Home from "@/pages/home";
 import Chat from "@/pages/chat";
 import Pricing from "@/pages/pricing";
+import Login from "@/pages/login";
+import SignUp from "@/pages/signup";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -15,6 +17,8 @@ function Router() {
       <Route path="/chat" component={Chat} />
       <Route path="/chat/:id" component={Chat} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/login" component={Login} />
+      <Route path="/signup" component={SignUp} />
       <Route component={NotFound} />
     </Switch>
   );
