@@ -286,9 +286,19 @@ export default function Dashboard() {
         setMessage(newMessage);
         setCurrentEditingMathId(null);
         setOriginalLatexBeingEdited('');
+        
+        // Focus back to textarea and position cursor after the edited math expression
+        setTimeout(() => {
+          textarea.focus();
+          const mathPos = newMessage.indexOf(newMathExpression);
+          const cursorPos = mathPos + newMathExpression.length;
+          textarea.setSelectionRange(cursorPos, cursorPos);
+          // Update visual cursor to match
+          setTimeout(() => renderMathExpressions(), 10);
+        }, 150);
       } else {
         // Create new math expression
-        const mathId = `math_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const mathId = `math_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
         const mathExpression = `<span class="math-expression" data-latex="${latex}" data-math-id="${mathId}"></span>`;
         const cursorPos = textarea.selectionStart || message.length;
         const newMessage = message.slice(0, cursorPos) + mathExpression + message.slice(cursorPos);
@@ -299,18 +309,15 @@ export default function Dashboard() {
           textarea.focus();
           const newCursorPos = cursorPos + mathExpression.length;
           textarea.setSelectionRange(newCursorPos, newCursorPos);
-        }, 100);
+          // Update visual cursor to match
+          setTimeout(() => renderMathExpressions(), 10);
+        }, 150);
       }
       
       // Close math input and reset
       setShowMathInput(false);
       setShowMathSymbols(false);
       mathFieldRef.current = null;
-      
-      // Render the math expression
-      setTimeout(() => {
-        renderMathExpressions();
-      }, 50);
     }
   };
 
@@ -353,23 +360,98 @@ export default function Dashboard() {
     let match;
 
     while ((match = mathRegex.exec(content)) !== null) {
-      // Add text before math expression (make it transparent since textarea shows it)
+      // Add text before math expression - make visible since textarea is transparent
       const textBefore = content.slice(lastIndex, match.index);
-      renderedContent += `<span style="color: transparent;">${textBefore}</span>`;
+      const escapedTextBefore = textBefore.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      renderedContent += `<span style="color: black; text-decoration: none;">${escapedTextBefore}</span>`;
       
       // Add math expression as a clickable span
       const latex = match[1];
       const mathId = match[2];
-      renderedContent += `<span class="rendered-math-expression" data-latex="${latex}" data-math-id="${mathId}" style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px; cursor: pointer; pointer-events: auto; display: inline-block; margin: 0 1px; border: 1px solid #d1d5db;"></span>`;
+      renderedContent += `<span class="rendered-math-expression" data-latex="${latex}" data-math-id="${mathId}" style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px; cursor: pointer; pointer-events: auto; display: inline-block; margin: 0 1px; border: 1px solid #d1d5db; text-decoration: none;"></span>`;
       
       lastIndex = mathRegex.lastIndex;
     }
     
-    // Add remaining text (transparent)
+    // Add remaining text - make visible since textarea is transparent
     const remainingText = content.slice(lastIndex);
-    renderedContent += `<span style="color: transparent;">${remainingText}</span>`;
+    const escapedRemainingText = remainingText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    renderedContent += `<span style="color: black; text-decoration: none;">${escapedRemainingText}</span>`;
     
     overlay.innerHTML = renderedContent;
+    
+    // Create a custom cursor that follows the visual layout
+    const createVisualCursor = () => {
+      let existingCursor = overlay.querySelector('.visual-cursor');
+      if (existingCursor) {
+        existingCursor.remove();
+      }
+      
+      const cursor = document.createElement('span');
+      cursor.className = 'visual-cursor';
+      cursor.style.cssText = `
+        position: absolute;
+        width: 1px;
+        height: 20px;
+        background: black;
+        animation: blink 1s infinite;
+        pointer-events: none;
+        z-index: 10;
+      `;
+      
+      // Calculate cursor position based on content
+      const cursorPos = textarea.selectionStart;
+      
+      // Find the visual position by measuring text up to cursor position
+      const measureSpan = document.createElement('span');
+      measureSpan.style.cssText = `
+        position: absolute;
+        visibility: hidden;
+        white-space: pre;
+        font-family: monospace;
+        font-size: 16px;
+        line-height: 1.5;
+      `;
+      
+      // Get text up to cursor accounting for math expressions
+      let visualText = '';
+      let contentIndex = 0;
+      
+      while (contentIndex < cursorPos && contentIndex < content.length) {
+        if (content.slice(contentIndex).startsWith('<span class="math-expression"')) {
+          // Skip the HTML tag and add a placeholder character for the math expression
+          const tagEnd = content.indexOf('></span>', contentIndex) + 8;
+          visualText += '■'; // Use a placeholder character for math
+          contentIndex = tagEnd; // Move to end of HTML tag
+        } else {
+          visualText += content[contentIndex];
+          contentIndex++;
+        }
+      }
+      
+      measureSpan.textContent = visualText;
+      document.body.appendChild(measureSpan);
+      const width = measureSpan.offsetWidth;
+      document.body.removeChild(measureSpan);
+      
+      cursor.style.left = (12 + width) + 'px'; // 12px is the padding
+      cursor.style.top = '15px';
+      
+      overlay.appendChild(cursor);
+    };
+    
+    // Add blink animation if not exists
+    if (!document.querySelector('#cursor-blink-style')) {
+      const style = document.createElement('style');
+      style.id = 'cursor-blink-style';
+      style.textContent = `
+        @keyframes blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
     
     // Initialize MathQuill for rendered expressions
     setTimeout(() => {
@@ -404,6 +486,9 @@ export default function Dashboard() {
           });
         }
       });
+      
+      // Create visual cursor after math is rendered
+      createVisualCursor();
     }, 100);
   };
 
@@ -771,6 +856,15 @@ export default function Dashboard() {
             setCurrentEditingMathId(null);
             setOriginalLatexBeingEdited('');
             mathFieldRef.current = null;
+            
+            // Focus back to textarea
+            setTimeout(() => {
+              const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
+              if (textarea) {
+                textarea.focus();
+                setTimeout(() => renderMathExpressions(), 10);
+              }
+            }, 50);
           }
         }
       }
@@ -1477,14 +1571,42 @@ export default function Dashboard() {
                     target.style.height = Math.min(target.scrollHeight, 128) + 'px';
                     // Activate math input if user types backward slash
                     if (e.nativeEvent instanceof InputEvent && e.nativeEvent.data === '\\') {
-                      setShowMathInput(true);
+                      // Prevent the backslash from appearing and activate math input
+                      e.preventDefault();
+                      const currentValue = target.value;
+                      const cursorPos = target.selectionStart || 0;
+                      // Remove the backslash that was just typed
+                      const newValue = currentValue.slice(0, cursorPos - 1) + currentValue.slice(cursorPos);
+                      setTimeout(() => {
+                        updateMessageHistory(newValue);
+                        setShowMathInput(true);
+                      }, 0);
                     }
+                    // Update visual cursor position when content changes
+                    setTimeout(() => renderMathExpressions(), 10);
+                  }}
+                  onKeyUp={() => {
+                    // Update visual cursor on key release
+                    setTimeout(() => renderMathExpressions(), 10);
+                  }}
+                  onMouseUp={() => {
+                    // Update visual cursor on mouse click
+                    setTimeout(() => renderMathExpressions(), 10);
                   }}
                   style={{ 
                     fontFamily: 'monospace',
                     color: (message.includes('class="math-expression"') && !showMathInput) ? 'transparent' : 'black',
-                    caretColor: 'black'
+                    caretColor: 'transparent',
+                    textDecoration: 'none',
+                    WebkitTextDecorationLine: 'none',
+                    textDecorationLine: 'none',
+                    outline: 'none',
+                    border: 'none'
                   }}
+                  spellCheck={false}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
                 />
                 
                 {/* Math input overlay - styled like the design */}
