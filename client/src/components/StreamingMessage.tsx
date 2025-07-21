@@ -6,12 +6,14 @@ interface StreamingMessageProps {
   content: string;
   isStreaming?: boolean;
   streamingSpeed?: number;
+  onContentChange?: (content: string) => void;
 }
 
 export default function StreamingMessage({ 
   content, 
   isStreaming = false, 
-  streamingSpeed = 50 
+  streamingSpeed = 50,
+  onContentChange
 }: StreamingMessageProps) {
   const [displayedContent, setDisplayedContent] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -20,12 +22,13 @@ export default function StreamingMessage({
     if (!isStreaming) {
       setDisplayedContent(content);
       setCurrentIndex(content.length);
+      onContentChange?.(content);
       return;
     }
 
     setDisplayedContent('');
     setCurrentIndex(0);
-  }, [content, isStreaming]);
+  }, [content, isStreaming, onContentChange]);
 
   useEffect(() => {
     if (!isStreaming) return;
@@ -40,13 +43,15 @@ export default function StreamingMessage({
       if (nextIndex < content.length) nextIndex++;
 
       const timer = setTimeout(() => {
-        setDisplayedContent(content.substring(0, nextIndex));
+        const newContent = content.substring(0, nextIndex);
+        setDisplayedContent(newContent);
         setCurrentIndex(nextIndex);
+        onContentChange?.(newContent);
       }, streamingSpeed);
 
       return () => clearTimeout(timer);
     }
-  }, [currentIndex, content, isStreaming, streamingSpeed]);
+  }, [currentIndex, content, isStreaming, streamingSpeed, onContentChange]);
 
   const renderMathContent = (text: string) => {
     // First convert common math symbols to proper notation

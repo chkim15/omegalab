@@ -31,6 +31,7 @@ export default function ChatInterface({
 }: ChatInterfaceProps) {
   const [input, setInput] = useState("");
   const [showDrawing, setShowDrawing] = useState(false);
+  const [showLoginMessage, setShowLoginMessage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
@@ -56,12 +57,17 @@ export default function ChatInterface({
     }
   }, [transcript]);
 
+  const showLoginPrompt = () => {
+    setShowLoginMessage(true);
+    // Hide the message after 3 seconds
+    setTimeout(() => setShowLoginMessage(false), 3000);
+  };
+
   const handleSend = () => {
     if (!input.trim()) return;
     
     if (isHomePage) {
-      // Navigate to chat page
-      setLocation("/chat");
+      showLoginPrompt();
       return;
     }
 
@@ -77,6 +83,11 @@ export default function ChatInterface({
   };
 
   const handleVoiceToggle = () => {
+    if (isHomePage) {
+      showLoginPrompt();
+      return;
+    }
+
     if (!isSupported) {
       toast({
         title: "Voice recognition not supported",
@@ -94,6 +105,10 @@ export default function ChatInterface({
   };
 
   const handleImageUpload = () => {
+    if (isHomePage) {
+      showLoginPrompt();
+      return;
+    }
     fileInputRef.current?.click();
   };
 
@@ -101,7 +116,7 @@ export default function ChatInterface({
     const file = e.target.files?.[0];
     if (file) {
       if (isHomePage) {
-        setLocation("/chat");
+        showLoginPrompt();
         return;
       }
       onSendImage(file);
@@ -110,14 +125,26 @@ export default function ChatInterface({
 
   const handleDrawingComplete = (drawingData: string) => {
     if (isHomePage) {
-      setLocation("/chat");
+      showLoginPrompt();
       return;
     }
     onSendMessage(`[Drawing: ${drawingData}]`, "drawing");
     setShowDrawing(false);
   };
 
+  const handleDrawingClick = () => {
+    if (isHomePage) {
+      showLoginPrompt();
+      return;
+    }
+    setShowDrawing(true);
+  };
+
   const insertSymbol = (symbol: string) => {
+    if (isHomePage) {
+      showLoginPrompt();
+      return;
+    }
     setInput(prev => prev + symbol);
   };
 
@@ -187,12 +214,23 @@ export default function ChatInterface({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Enter a message... ('\' for math)"
+              placeholder={isHomePage ? "Type to get started..." : "Enter a message... ('\' for math)"}
               className="w-full pr-32 text-lg h-12"
               disabled={isLoading}
             />
             
             <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center space-x-3">
+              {/* Login message popup */}
+              {showLoginMessage && isHomePage && (
+                <div 
+                  className="absolute bottom-full right-0 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md shadow-lg animate-fade-in"
+                  style={{ zIndex: 10 }}
+                >
+                  Please log in
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
+                </div>
+              )}
+              
               <Button
                 variant="ghost"
                 size="sm"
@@ -217,7 +255,7 @@ export default function ChatInterface({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowDrawing(true)}
+                onClick={handleDrawingClick}
                 className="p-2 text-gray-500 hover:text-omegalab-blue"
                 title="Draw"
                 disabled={isLoading}
@@ -241,9 +279,13 @@ export default function ChatInterface({
             </div>
           </div>
           
-          <Separator className="my-4" />
-          
-          <MathSymbols onSymbolClick={insertSymbol} />
+          {/* Only show math symbols and separator if not on home page */}
+          {!isHomePage && (
+            <>
+              <Separator className="my-4" />
+              <MathSymbols onSymbolClick={insertSymbol} />
+            </>
+          )}
           
           <input
             ref={fileInputRef}

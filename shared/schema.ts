@@ -8,6 +8,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   plan: text("plan").notNull().default("free"), // "free" or "pro"
+  stripeCustomerId: text("stripe_customer_id"), // Stripe customer ID for subscription management
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

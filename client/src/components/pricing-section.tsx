@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check } from "lucide-react";
+import { Link } from "wouter";
 
 export default function PricingSection() {
   return (
@@ -44,9 +45,13 @@ export default function PricingSection() {
                   <span className="text-gray-700">All chat features</span>
                 </div>
               </div>
-              <Button className="w-full bg-gray-200 text-gray-800 hover:bg-gray-300">
-                Create account
-              </Button>
+              <div className="pt-9">
+                <Link href="/signup">
+                  <Button className="w-full bg-gray-200 text-gray-800 hover:bg-gray-300">
+                    Create account
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
 
@@ -86,9 +91,13 @@ export default function PricingSection() {
                   <span>...and everything in Free</span>
                 </div>
               </div>
-              <Button className="w-full bg-white text-omegalab-blue hover:bg-gray-100">
-                Create account
-              </Button>
+              <div className="pt-2">
+                <Link href="/signup">
+                  <Button className="w-full bg-white text-omegalab-blue hover:bg-gray-100">
+                    Create account
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </div>

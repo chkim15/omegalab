@@ -6,6 +6,8 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserPlan(userId: number, plan: string, stripeCustomerId?: string): Promise<User | undefined>;
+  getUserByStripeCustomerId(stripeCustomerId: string): Promise<User | undefined>;
   
   // Conversation operations
   getConversation(id: number): Promise<Conversation | undefined>;
@@ -54,10 +56,28 @@ export class MemStorage implements IStorage {
       ...insertUser,
       id,
       plan: "free",
+      stripeCustomerId: null,
       createdAt: new Date(),
     };
     this.users.set(id, user);
     return user;
+  }
+
+  async updateUserPlan(userId: number, plan: string, stripeCustomerId?: string): Promise<User | undefined> {
+    const user = this.users.get(userId);
+    if (!user) return undefined;
+
+    const updatedUser: User = {
+      ...user,
+      plan,
+      stripeCustomerId: stripeCustomerId || user.stripeCustomerId,
+    };
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+
+  async getUserByStripeCustomerId(stripeCustomerId: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.stripeCustomerId === stripeCustomerId);
   }
 
   async getConversation(id: number): Promise<Conversation | undefined> {

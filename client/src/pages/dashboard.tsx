@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -30,7 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import StreamingMessage from "@/components/StreamingMessage";
-import DrawingPad from "@/components/drawing-pad";
+import TldrawPad from "@/components/tldraw-pad";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Message {
@@ -38,6 +38,13 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  metadata?: {
+    images?: Array<{
+      url: string;
+      name?: string;
+      size?: number;
+    }>;
+  };
 }
 
 interface Conversation {
@@ -65,9 +72,109 @@ export default function Dashboard() {
   const [recognition, setRecognition] = useState<any>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<{url: string, file: File}[]>([]);
+  const [showMathInput, setShowMathInput] = useState(false);
+  const [showProUpgrade, setShowProUpgrade] = useState(false);
+  const [showMathSymbols, setShowMathSymbols] = useState(false);
+  const [mathSymbolSearch, setMathSymbolSearch] = useState("");
+  const [selectedMathCategory, setSelectedMathCategory] = useState("Common");
+  const [currentEditingMathId, setCurrentEditingMathId] = useState<string | null>(null);
+  const [originalLatexBeingEdited, setOriginalLatexBeingEdited] = useState<string>('');
+  const mathInputRef = useRef<HTMLDivElement>(null);
+  const mathFieldRef = useRef<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentUser, logout } = useAuth();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  // Math symbols data
+  const mathSymbols = [
+    // Basic Operators
+    { symbol: "+", name: "Plus", category: "Common" },
+    { symbol: "-", name: "Minus", category: "Common" },
+    { symbol: "×", name: "Multiplication", category: "Common" },
+    { symbol: "÷", name: "Division", category: "Common" },
+    { symbol: "±", name: "Plus-Minus", category: "Common" },
+    { symbol: "□/□", name: "Fraction", category: "Common" },
+    { symbol: "√□", name: "Square Root", category: "Common" },
+    { symbol: "□²", name: "Squared", category: "Common" },
+    { symbol: "□³", name: "Cubed", category: "Common" },
+    { symbol: "□^□", name: "Exponent", category: "Common" },
+    
+    // Relations
+    { symbol: "=", name: "Equals", category: "Common" },
+    { symbol: "≠", name: "Not Equals", category: "Common" },
+    { symbol: "≈", name: "Approximately", category: "Common" },
+    { symbol: "<", name: "Less Than", category: "Common" },
+    { symbol: "≤", name: "Less Than or Equal", category: "Common" },
+    { symbol: ">", name: "Greater Than", category: "Common" },
+    { symbol: "≥", name: "Greater Than or Equal", category: "Common" },
+    { symbol: "·", name: "Dot", category: "Common" },
+    
+    // Logarithms and Variables
+    { symbol: "ln □", name: "Natural Log", category: "Common" },
+    { symbol: "log₁₀(□)", name: "Log Base 10", category: "Common" },
+    { symbol: "log□ □", name: "Log Base", category: "Common" },
+    { symbol: "e^□", name: "E to Power", category: "Common" },
+    { symbol: "x", name: "Variable x", category: "Common" },
+    { symbol: "y", name: "Variable y", category: "Common" },
+    { symbol: "t", name: "Variable t", category: "Common" },
+    { symbol: "n", name: "Variable n", category: "Common" },
+    
+    // Constants and Symbols
+    { symbol: "π", name: "Pi", category: "Common" },
+    { symbol: "e", name: "Euler's Number", category: "Common" },
+    { symbol: "∞", name: "Infinity", category: "Common" },
+    { symbol: "°", name: "Degree", category: "Common" },
+    { symbol: "θ", name: "Theta", category: "Common" },
+    { symbol: "%", name: "Percent", category: "Common" },
+    { symbol: "(□)", name: "Parentheses", category: "Common" },
+    { symbol: "[□]", name: "Square Brackets", category: "Common" },
+    { symbol: "|□|", name: "Absolute Value", category: "Common" },
+    { symbol: "||□||", name: "Norm", category: "Common" },
+    { symbol: "⊢", name: "Right Tack", category: "Common" },
+    
+    // Summation and Functions
+    { symbol: "∑", name: "Summation", category: "Common" },
+    { symbol: "gcd(□, □)", name: "Greatest Common Divisor", category: "Common" },
+    { symbol: "lcm(□, □)", name: "Least Common Multiple", category: "Common" },
+    
+    // Trigonometry
+    { symbol: "sin(□)", name: "Sine", category: "Common" },
+    { symbol: "cos(□)", name: "Cosine", category: "Common" },
+    { symbol: "tan(□)", name: "Tangent", category: "Common" },
+    { symbol: "lim□→□", name: "Limit", category: "Common" },
+    { symbol: "d/dx", name: "Derivative", category: "Common" },
+    
+    // Integrals
+    { symbol: "∫ d□", name: "Indefinite Integral", category: "Common" },
+    { symbol: "∫□^□ d□", name: "Definite Integral", category: "Common" },
+  ];
+
+  const mathCategories = ["Common", "Algebra", "Calculus", "Statistics", "Geometry"];
+
+  // Filter symbols based on search and category
+  const filteredMathSymbols = mathSymbols.filter(symbol => 
+    symbol.category === selectedMathCategory && 
+    (symbol.name.toLowerCase().includes(mathSymbolSearch.toLowerCase()) || 
+     symbol.symbol.toLowerCase().includes(mathSymbolSearch.toLowerCase()))
+  );
+
+  // Check if user is at bottom of messages
+  const checkIfAtBottom = () => {
+    if (!scrollAreaRef.current) return true;
+    const { scrollTop, scrollHeight, clientHeight } = scrollAreaRef.current;
+    const threshold = 20; // Reduced tolerance to be more precise
+    return scrollHeight - scrollTop - clientHeight < threshold;
+  };
+
+  // Auto-scroll to bottom when messages change, but only if user is at bottom
+  const scrollToBottom = () => {
+    if (isAtBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -97,6 +204,37 @@ export default function Dashboard() {
     }
   };
 
+  const handleProUpgrade = async () => {
+    try {
+      // Redirect to Stripe checkout
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          priceId: 'price_1RmfQRKvRMqGR0DBuBE2YWTT', // Your actual Stripe price ID
+          userId: currentUser?.uid,
+          email: currentUser?.email,
+        }),
+      });
+
+      if (response.ok) {
+        const { url } = await response.json();
+        window.location.href = url; // Redirect to Stripe checkout
+      } else {
+        throw new Error('Failed to create checkout session');
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start checkout process. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Update message history when message changes
   const updateMessageHistory = (newMessage: string) => {
     setMessage(newMessage);
@@ -110,37 +248,168 @@ export default function Dashboard() {
     }
   };
 
-  // Undo functionality
-  const handleUndo = () => {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
-      setHistoryIndex(newIndex);
-      setMessage(messageHistory[newIndex]);
-    }
-  };
-
-  // Redo functionality
-  const handleRedo = () => {
-    if (historyIndex < messageHistory.length - 1) {
-      const newIndex = historyIndex + 1;
-      setHistoryIndex(newIndex);
-      setMessage(messageHistory[newIndex]);
-    }
-  };
-
   // Drawing completion handler
-  const handleDrawingComplete = (mathNotation: string) => {
-    // Add the extracted math notation to the current message
-    const currentText = message.trim();
-    const newText = currentText ? `${currentText} ${mathNotation}` : mathNotation;
-    updateMessageHistory(newText);
+  const handleDrawingComplete = (imageData: string) => {
+    // Create a file from the image data
+    const base64Data = imageData.split(',')[1];
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const file = new File([byteArray], 'drawing.png', { type: 'image/png' });
+    
+    // Add the image to uploaded images
+    setUploadedImages(prev => [...prev, { url: imageData, file }]);
     
     setShowDrawing(false);
+  };
+
+  // Function to insert a math symbol into the math input
+  const insertMathSymbol = (symbol: string) => {
+    if (mathFieldRef.current) {
+      mathFieldRef.current.write(symbol);
+      mathFieldRef.current.focus();
+    }
+  };
+
+  // Function to insert math expression into main message and close math input
+  const insertMathIntoMessage = (latex: string) => {
+    const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
     
-    toast({
-      title: "Drawing Converted",
-      description: "Math notation extracted from your drawing!",
-    });
+    if (textarea) {
+      if (currentEditingMathId) {
+        // When editing, replace the original LaTeX with the new HTML expression
+        const newMathExpression = `<span class="math-expression" data-latex="${latex}" data-math-id="${currentEditingMathId}"></span>`;
+        const newMessage = message.replace(originalLatexBeingEdited, newMathExpression);
+        setMessage(newMessage);
+        setCurrentEditingMathId(null);
+        setOriginalLatexBeingEdited('');
+      } else {
+        // Create new math expression
+        const mathId = `math_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const mathExpression = `<span class="math-expression" data-latex="${latex}" data-math-id="${mathId}"></span>`;
+        const cursorPos = textarea.selectionStart || message.length;
+        const newMessage = message.slice(0, cursorPos) + mathExpression + message.slice(cursorPos);
+        setMessage(newMessage);
+        
+        // Focus back to textarea with cursor positioned after the math expression
+        setTimeout(() => {
+          textarea.focus();
+          const newCursorPos = cursorPos + mathExpression.length;
+          textarea.setSelectionRange(newCursorPos, newCursorPos);
+        }, 100);
+      }
+      
+      // Close math input and reset
+      setShowMathInput(false);
+      setShowMathSymbols(false);
+      mathFieldRef.current = null;
+      
+      // Render the math expression
+      setTimeout(() => {
+        renderMathExpressions();
+      }, 50);
+    }
+  };
+
+  // Function to render math expressions in the textarea
+  const renderMathExpressions = () => {
+    const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
+    if (!textarea || !textarea.parentElement) return;
+
+    // Create or update the overlay div that will contain rendered math
+    let overlay = textarea.parentElement.querySelector('.math-overlay') as HTMLElement;
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'math-overlay';
+      overlay.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+        z-index: 2;
+        padding: 12px 16px;
+        font-family: monospace;
+        font-size: 16px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow: hidden;
+        color: black;
+      `;
+      textarea.parentElement.appendChild(overlay);
+    }
+
+    // Parse the textarea content and render math expressions
+    const content = textarea.value;
+    const mathRegex = /<span class="math-expression" data-latex="([^"]*)" data-math-id="([^"]*)"><\/span>/g;
+    
+    let lastIndex = 0;
+    let renderedContent = '';
+    let match;
+
+    while ((match = mathRegex.exec(content)) !== null) {
+      // Add text before math expression (make it transparent since textarea shows it)
+      const textBefore = content.slice(lastIndex, match.index);
+      renderedContent += `<span style="color: transparent;">${textBefore}</span>`;
+      
+      // Add math expression as a clickable span
+      const latex = match[1];
+      const mathId = match[2];
+      renderedContent += `<span class="rendered-math-expression" data-latex="${latex}" data-math-id="${mathId}" style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px; cursor: pointer; pointer-events: auto; display: inline-block; margin: 0 1px; border: 1px solid #d1d5db;"></span>`;
+      
+      lastIndex = mathRegex.lastIndex;
+    }
+    
+    // Add remaining text (transparent)
+    const remainingText = content.slice(lastIndex);
+    renderedContent += `<span style="color: transparent;">${remainingText}</span>`;
+    
+    overlay.innerHTML = renderedContent;
+    
+    // Initialize MathQuill for rendered expressions
+    setTimeout(() => {
+      const renderedExpressions = overlay.querySelectorAll('.rendered-math-expression');
+      renderedExpressions.forEach((expr) => {
+        const latex = expr.getAttribute('data-latex');
+        if (latex && (window as any).MathQuill) {
+          const MQ = (window as any).MathQuill.getInterface(2);
+          MQ.StaticMath(expr).latex(latex);
+          
+          // Add click handler for editing
+          expr.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const mathId = expr.getAttribute('data-math-id');
+            setCurrentEditingMathId(mathId);
+            setOriginalLatexBeingEdited(latex);
+            
+            // Replace the HTML math expression with plain LaTeX for editing
+            const mathRegex = new RegExp(`<span class="math-expression" data-latex="([^"]*)" data-math-id="${mathId}"></span>`, 'g');
+            const tempMessage = message.replace(mathRegex, latex);
+            setMessage(tempMessage);
+            
+            setShowMathInput(true);
+            
+            setTimeout(() => {
+              if (mathFieldRef.current) {
+                mathFieldRef.current.latex(latex);
+                mathFieldRef.current.focus();
+              }
+            }, 150);
+          });
+        }
+      });
+    }, 100);
+  };
+
+  // Function to handle clicking on existing math expressions for editing
+  const handleTextareaClick = (event: React.MouseEvent<HTMLTextAreaElement>) => {
+    // This function is now handled by the overlay click handlers
   };
 
   // Initialize speech recognition
@@ -211,11 +480,82 @@ export default function Dashboard() {
     }
   }, [theme]);
 
+  // Add MathQuill styles for rendered math
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .math-display {
+        font-family: 'Times New Roman', serif;
+        font-size: 16px;
+        line-height: 1.2;
+      }
+      .math-display .mq-root-block {
+        display: inline-block;
+      }
+      .mq-editable-field, .mq-math-mode {
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+        text-decoration: none !important;
+      }
+      .mq-editable-field .mq-cursor {
+        border-left: 1px solid black !important;
+      }
+      .mq-editable-field .mq-selection, .mq-editable-field .mq-selection .mq-non-leaf {
+        background: rgba(59, 130, 246, 0.3) !important;
+        border: none !important;
+        outline: none !important;
+      }
+      .mq-editable-field.mq-focused {
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+      }
+      .mq-editable-field .mq-hasCursor {
+        border: none !important;
+      }
+      .rendered-math-expression .mq-math-mode {
+        border: none !important;
+        outline: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   const saveSettings = () => {
     localStorage.setItem('defaultResponseMode', defaultMode);
     localStorage.setItem('theme', theme);
     setSelectedMode(defaultMode);
     setIsSettingsOpen(false);
+  };
+
+  // Helper function to render math content
+  const renderMathContent = (content: string) => {
+    if (!content) return '';
+    
+    // Replace [MATH]...[/MATH] markers with rendered math
+    return content.replace(/\[MATH\](.*?)\[\/MATH\]/g, (match, latex) => {
+      try {
+        // Create a temporary div to render the math
+        const tempDiv = document.createElement('div');
+        if ((window as any).MathQuill) {
+          const MQ = (window as any).MathQuill.getInterface(2);
+          const staticMath = MQ.StaticMath(tempDiv);
+          staticMath.latex(latex);
+          return `<span class="math-display" style="display: inline-block; margin: 0 2px;">${tempDiv.innerHTML}</span>`;
+        } else {
+          // Fallback to LaTeX if MathQuill not available
+          return `<span class="math-display">$${latex}$</span>`;
+        }
+      } catch (error) {
+        console.error('Error rendering math:', error);
+        return `<span class="math-display">$${latex}$</span>`;
+      }
+    });
   };
 
   // Create a simple mapping between Firebase UID and numeric ID for backend compatibility
@@ -256,6 +596,192 @@ export default function Dashboard() {
     enabled: !!currentConversationId,
   });
 
+  useEffect(() => {
+    // Only auto-scroll if user is at bottom and not actively scrolling up
+    if (isAtBottom) {
+      scrollToBottom();
+    }
+  }, [messages]);
+
+  // Track scroll position to determine if user is at bottom
+  useEffect(() => {
+    const scrollArea = scrollAreaRef.current;
+    if (!scrollArea) return;
+
+    const handleScroll = () => {
+      setIsAtBottom(checkIfAtBottom());
+    };
+
+    scrollArea.addEventListener('scroll', handleScroll);
+    return () => {
+      scrollArea.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  // Initialize MathQuill when math input is shown
+  useEffect(() => {
+    if (showMathInput && mathInputRef.current && !mathFieldRef.current) {
+      // Load MathQuill CSS and JS
+      const loadMathQuill = async () => {
+        // Load CSS globally if not already loaded
+        if (!document.querySelector('link[href*="mathquill"]')) {
+          const cssLink = document.createElement('link');
+          cssLink.rel = 'stylesheet';
+          cssLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/mathquill/0.10.1/mathquill.css';
+          document.head.appendChild(cssLink);
+          
+          // Add custom CSS to remove red dotted lines and other unwanted styling
+          const customCSS = document.createElement('style');
+          customCSS.textContent = `
+            .mq-editable-field, .mq-math-mode {
+              border: none !important;
+              outline: none !important;
+              box-shadow: none !important;
+            }
+            .mq-editable-field .mq-cursor {
+              border-left: 1px solid black !important;
+            }
+            .mq-editable-field .mq-selection, .mq-editable-field .mq-selection .mq-non-leaf {
+              background: rgba(59, 130, 246, 0.3) !important;
+              border: none !important;
+              outline: none !important;
+            }
+            .mq-editable-field.mq-focused {
+              border: none !important;
+              outline: none !important;
+              box-shadow: none !important;
+            }
+            .mq-editable-field .mq-hasCursor {
+              border: none !important;
+            }
+            .rendered-math-expression .mq-math-mode {
+              border: none !important;
+              outline: none !important;
+            }
+          `;
+          document.head.appendChild(customCSS);
+        }
+
+        // Load jQuery first (required by MathQuill)
+        if (!(window as any).jQuery) {
+          const jqueryScript = document.createElement('script');
+          jqueryScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js';
+          await new Promise((resolve, reject) => {
+            jqueryScript.onload = resolve;
+            jqueryScript.onerror = reject;
+            document.head.appendChild(jqueryScript);
+          });
+        }
+
+        // Load MathQuill
+        if (!(window as any).MathQuill) {
+          const mathquillScript = document.createElement('script');
+          mathquillScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathquill/0.10.1/mathquill.min.js';
+          await new Promise((resolve, reject) => {
+            mathquillScript.onload = resolve;
+            mathquillScript.onerror = reject;
+            document.head.appendChild(mathquillScript);
+          });
+        }
+
+        // Initialize MathQuill
+        setTimeout(() => {
+          try {
+            const MQ = (window as any).MathQuill.getInterface(2);
+            mathFieldRef.current = MQ.MathField(mathInputRef.current, {
+              spaceBehavesLikeTab: true,
+              leftRightIntoCmdGoes: 'up',
+              restrictMismatchedBrackets: true,
+              sumStartsWithNEquals: true,
+              supSubsRequireOperand: true,
+              charsThatBreakOutOfSupSub: '+-=<>',
+              autoSubscriptNumerals: true,
+              autoCommands: 'pi theta sqrt sum prod alpha beta gamma delta epsilon zeta eta mu nu xi rho sigma tau phi chi psi omega',
+              autoOperatorNames: 'sin cos tan log ln exp lim max min',
+              handlers: {
+                enter: () => {
+                  const latex = mathFieldRef.current.latex();
+                  if (latex) {
+                    insertMathIntoMessage(latex);
+                  }
+                },
+                edit: () => {
+                  // Dynamically adjust width based on content
+                  const latex = mathFieldRef.current.latex();
+                  if (latex && mathInputRef.current) {
+                    const container = mathInputRef.current.closest('.absolute') as HTMLElement;
+                    if (container) {
+                      const baseWidth = 200; // minimum width
+                      const charWidth = 8; // approximate width per character
+                      const newWidth = Math.max(baseWidth, Math.min(600, latex.length * charWidth));
+                      container.style.width = `${newWidth}px`;
+                    }
+                  }
+                }
+              }
+            });
+            mathFieldRef.current.focus();
+          } catch (error) {
+            console.error('Error initializing MathQuill:', error);
+            setShowMathInput(false);
+          }
+        }, 100);
+      };
+
+      loadMathQuill();
+    }
+  }, [showMathInput]);
+
+  // Render math expressions when message changes
+  useEffect(() => {
+    if (message.includes('class="math-expression"') && !showMathInput) {
+      renderMathExpressions();
+    } else {
+      // Remove overlay if no math expressions or when editing
+      const overlay = document.querySelector('.math-overlay');
+      if (overlay) {
+        overlay.remove();
+      }
+    }
+  }, [message, showMathInput]);
+
+  // Handle clicking outside math input
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showMathInput && mathInputRef.current) {
+        const mathContainer = mathInputRef.current.closest('.absolute');
+        const symbolsPanel = document.querySelector('.absolute.bottom-full');
+        
+        const isClickInsideMathArea = mathContainer && mathContainer.contains(event.target as Node);
+        const isClickInsideSymbolsPanel = symbolsPanel && symbolsPanel.contains(event.target as Node);
+        
+        if (!isClickInsideMathArea && !isClickInsideSymbolsPanel) {
+          const latex = mathFieldRef.current?.latex();
+          if (latex) {
+            insertMathIntoMessage(latex);
+          } else {
+            // If no LaTeX and we were editing, restore the original
+            if (currentEditingMathId && originalLatexBeingEdited) {
+              const mathExpression = `<span class="math-expression" data-latex="${originalLatexBeingEdited}" data-math-id="${currentEditingMathId}"></span>`;
+              const newMessage = message.replace(originalLatexBeingEdited, mathExpression);
+              setMessage(newMessage);
+            }
+            setShowMathInput(false);
+            setShowMathSymbols(false);
+            setCurrentEditingMathId(null);
+            setOriginalLatexBeingEdited('');
+            mathFieldRef.current = null;
+          }
+        }
+      }
+    };
+
+    if (showMathInput) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showMathInput]);
+
   // Create new conversation
   const createConversationMutation = useMutation({
     mutationFn: (title: string) =>
@@ -271,12 +797,12 @@ export default function Dashboard() {
 
   // Send message mutation
   const sendMessageMutation = useMutation({
-    mutationFn: (messageData: { problem: string; mode: string; images?: any[] }) =>
+    mutationFn: (messageData: { problem: string; mode: string; images?: any[]; conversationId: number }) =>
       apiRequest("/api/solve", {
         method: "POST",
         body: {
           problem: messageData.problem,
-          conversationId: currentConversationId,
+          conversationId: messageData.conversationId,
           inputMethod: "text",
           mode: messageData.mode,
           images: messageData.images,
@@ -287,10 +813,16 @@ export default function Dashboard() {
       queryClient.invalidateQueries({
         queryKey: ["/api/conversations", currentConversationId, "messages"],
       });
-      // Trigger streaming for the most recent assistant message
-      setTimeout(() => {
-        setStreamingMessageId(-1); // Use -1 to indicate latest message should stream
-      }, 100);
+      // Trigger streaming for the most recent assistant message only if not already streaming
+      if (streamingMessageId === null) {
+        setTimeout(() => {
+          setStreamingMessageId(-1); // Use -1 to indicate latest message should stream
+          // Scroll to bottom after a short delay to ensure new messages are rendered
+          setTimeout(() => {
+            if (isAtBottom) scrollToBottom();
+          }, 100);
+        }, 100);
+      }
     },
     onError: (error) => {
       toast({
@@ -410,22 +942,35 @@ export default function Dashboard() {
     const messageContent = finalMessage || (imageData.length > 0 ? "Please solve the math problem in the attached image" : "");
     
     if (!currentConversationId) {
+      // Create new conversation and send message in sequence
       const title = messageContent.length > 50 ? messageContent.substring(0, 50) + "..." : messageContent || "Math Problem";
-      createConversationMutation.mutate(title);
-      setTimeout(() => {
-        if (currentConversationId) {
-          sendMessageMutation.mutate({ 
-            problem: messageContent, 
-            mode: selectedMode,
-            images: imageData.length > 0 ? imageData : undefined
-          });
-        }
-      }, 100);
+      
+      try {
+        // Create conversation first
+        const newConversation = await createConversationMutation.mutateAsync(title);
+        
+        // Then send the message with the new conversation ID
+        sendMessageMutation.mutate({ 
+          problem: messageContent, 
+          mode: selectedMode,
+          images: imageData.length > 0 ? imageData : undefined,
+          conversationId: newConversation.id
+        });
+      } catch (error) {
+        console.error('Error creating conversation:', error);
+        toast({
+          title: "Error",
+          description: "Failed to create conversation. Please try again.",
+          variant: "destructive",
+        });
+      }
     } else {
+      // Send message to existing conversation
       sendMessageMutation.mutate({ 
         problem: messageContent, 
         mode: selectedMode,
-        images: imageData.length > 0 ? imageData : undefined
+        images: imageData.length > 0 ? imageData : undefined,
+        conversationId: currentConversationId
       });
     }
 
@@ -433,6 +978,11 @@ export default function Dashboard() {
     setMessage("");
     uploadedImages.forEach(img => URL.revokeObjectURL(img.url));
     setUploadedImages([]);
+    
+    // Only scroll if user is at bottom
+    if (isAtBottom) {
+      setTimeout(scrollToBottom, 50);
+    }
   };
 
   // Auto-select first conversation if none selected
@@ -470,7 +1020,7 @@ export default function Dashboard() {
         </div>
 
         {/* Chat List */}
-        <ScrollArea className="flex-1 px-4 pt-4">
+        <ScrollArea className="flex-1 px-4 pt-4" ref={scrollAreaRef}>
           <div className="space-y-2">
             {conversationsLoading ? (
               <div className="text-center py-4 text-gray-500">Loading chats...</div>
@@ -609,12 +1159,17 @@ export default function Dashboard() {
             </Dialog>
           </div>
           <div className="mt-1 text-xs text-omegalab-blue">
-            📈 Try Pro for free →
+            <button 
+              onClick={() => setShowProUpgrade(true)}
+              className="hover:underline cursor-pointer"
+            >
+              📈 Try Pro for free →
+            </button>
           </div>
         </div>
 
         {/* User Profile Button */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-900 text-white">
+        <div className="py-2 px-4 border-t border-gray-200 dark:border-gray-700 bg-gray-900 text-white">
           <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
             <DialogTrigger asChild>
               <Button variant="ghost" className="w-full justify-start text-white hover:bg-gray-700">
@@ -663,7 +1218,7 @@ export default function Dashboard() {
                       </label>
                       <div className="flex items-center gap-2">
                         <p className="text-sm text-gray-900">{subscription}</p>
-                        <Button variant="link" className="text-omegalab-blue p-0 h-auto text-sm">
+                        <Button variant="link" className="text-omegalab-blue p-0 h-auto text-sm" onClick={() => setShowProUpgrade(true)}>
                           🚀 Try Pro for free →
                         </Button>
                       </div>
@@ -716,7 +1271,7 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Messages Area */}
-        <ScrollArea className="flex-1 p-4">
+        <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
           <div className="max-w-2xl mx-auto space-y-4">
             {messagesLoading ? (
               <div className="text-center py-8 text-gray-500">Loading messages...</div>
@@ -756,7 +1311,12 @@ export default function Dashboard() {
                       {msg.role === "assistant" ? (
                         <StreamingMessage 
                           content={msg.content} 
-                          isStreaming={streamingMessageId === -1 && msg.id === Math.max(...messages.filter(m => m.role === "assistant").map(m => m.id))}
+                          isStreaming={streamingMessageId === -1 && msg.id === Math.max(...messages.filter((m: Message) => m.role === "assistant").map((m: Message) => m.id))}
+                          onContentChange={() => {
+                            if (isAtBottom) {
+                              scrollToBottom();
+                            }
+                          }}
                         />
                       ) : (
                         <div className="text-gray-900 dark:text-white">
@@ -773,9 +1333,10 @@ export default function Dashboard() {
                               ))}
                             </div>
                           )}
-                          <div className="whitespace-pre-wrap">
-                            {msg.content}
-                          </div>
+                          <div 
+                            className="whitespace-pre-wrap"
+                            dangerouslySetInnerHTML={{ __html: renderMathContent(msg.content) }}
+                          />
                         </div>
                       )}
                     </div>
@@ -788,6 +1349,7 @@ export default function Dashboard() {
                 </div>
               ))
             )}
+            <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
 
@@ -796,33 +1358,31 @@ export default function Dashboard() {
           <form onSubmit={handleSendMessage} className="max-w-2xl mx-auto">
             {/* Top toolbar */}
             <div className="flex items-center justify-between mb-4">
-              {/* Left: Undo/Redo */}
+              {/* Left: Answer and Tutor buttons (replacing undo/redo) */}
               <div className="flex items-center space-x-2">
                 <Button 
-                  type="button" 
-                  variant="ghost" 
+                  type="button"
+                  variant={selectedMode === "answer" ? "default" : "outline"}
                   size="sm" 
-                  className={`text-gray-600 hover:bg-gray-100 ${historyIndex <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={handleUndo}
-                  disabled={historyIndex <= 0}
-                  title="Undo"
+                  className={selectedMode === "answer" 
+                    ? "bg-gray-900 text-white hover:bg-gray-800" 
+                    : "text-gray-600 border-gray-300"
+                  }
+                  onClick={() => setSelectedMode("answer")}
                 >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                  </svg>
+                  Answer
                 </Button>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="sm" 
-                  className={`text-gray-600 hover:bg-gray-100 ${historyIndex >= messageHistory.length - 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={handleRedo}
-                  disabled={historyIndex >= messageHistory.length - 1}
-                  title="Redo"
+                <Button
+                  type="button"
+                  variant={selectedMode === "tutor" ? "default" : "outline"}
+                  size="sm"
+                  className={selectedMode === "tutor" 
+                    ? "bg-gray-900 text-white hover:bg-gray-800"
+                    : "text-gray-600 border-gray-300"
+                  }
+                  onClick={() => setSelectedMode("tutor")}
                 >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
-                  </svg>
+                  Tutor
                 </Button>
               </div>
               
@@ -847,9 +1407,7 @@ export default function Dashboard() {
                   disabled={isUploading}
                   onClick={() => document.getElementById('image-upload')?.click()}
                 >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
+                  <Image className="h-4 w-4" />
                 </Button>
                 <input
                   id="image-upload"
@@ -863,14 +1421,15 @@ export default function Dashboard() {
                   <Edit3 className="h-4 w-4" />
                 </Button>
                 <div className="h-6 w-px bg-gray-300"></div>
-                <Button type="button" variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
-                  </svg>
-                </Button>
-                <div className="h-6 w-px bg-gray-300"></div>
-                <Button type="button" variant="ghost" size="sm" className="text-gray-600 hover:bg-gray-100">
-                  <MoreHorizontal className="h-4 w-4" />
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  className={`text-gray-600 hover:bg-gray-100 ${showMathInput ? 'bg-blue-100 text-blue-600' : ''}`}
+                  title="Math equations" 
+                  onClick={() => setShowMathInput(!showMathInput)}
+                >
+                  <span className="text-sm font-mono font-bold">fx</span>
                 </Button>
               </div>
             </div>
@@ -902,73 +1461,295 @@ export default function Dashboard() {
             
             {/* Input area */}
             <div className="relative">
-              <Input
-                value={message}
-                onChange={(e) => updateMessageHistory(e.target.value)}
-                onPaste={handlePaste}
-                placeholder={isUploading ? "Processing images..." : "Enter a message... (\\ for math) or paste an image"}
-                className="w-full bg-white text-black border border-gray-300 rounded-lg px-4 py-3 pr-48 focus-visible:ring-2 focus-visible:ring-omegalab-blue focus-visible:ring-offset-0"
-                disabled={sendMessageMutation.isPending || isUploading}
-              />
-              {isUploading && (
-                <div className="absolute right-48 top-1/2 transform -translate-y-1/2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                </div>
-              )}
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
-                <Button type="button" variant="ghost" size="sm" className="text-gray-500 hover:text-gray-700">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </Button>
-                <Button type="button" variant="ghost" size="sm" className="text-gray-500 hover:text-gray-700">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </Button>
+              <div className="relative border border-gray-300 rounded-lg bg-white">
+                <textarea
+                  value={message}
+                  onChange={(e) => updateMessageHistory(e.target.value)}
+                  onPaste={handlePaste}
+                  onClick={handleTextareaClick}
+                  placeholder={isUploading ? "Processing images..." : "Enter a message... (\\ for math) or paste an image"}
+                  className="w-full bg-transparent px-4 py-3 focus-visible:ring-0 focus-visible:outline-none resize-none min-h-[48px] max-h-32 border-0 relative z-0"
+                  disabled={sendMessageMutation.isPending || isUploading}
+                  rows={1}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = Math.min(target.scrollHeight, 128) + 'px';
+                    // Activate math input if user types backward slash
+                    if (e.nativeEvent instanceof InputEvent && e.nativeEvent.data === '\\') {
+                      setShowMathInput(true);
+                    }
+                  }}
+                  style={{ 
+                    fontFamily: 'monospace',
+                    color: (message.includes('class="math-expression"') && !showMathInput) ? 'transparent' : 'black',
+                    caretColor: 'black'
+                  }}
+                />
+                
+                {/* Math input overlay - styled like the design */}
+                {showMathInput && (
+                  <div className="absolute inset-0 bg-white border-2 border-blue-500 rounded-lg flex items-center px-3 py-2" style={{ width: 120 }}>
+                    <div className="flex-1 flex items-center min-h-[40px]">
+                      <div 
+                        ref={mathInputRef}
+                        className="flex-1 min-h-[32px] bg-gray-50 border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        style={{ fontFamily: 'Times New Roman, serif', fontSize: '16px', textDecoration: 'none' }}
+                        spellCheck={false}
+                      />
+                    </div>
+                    
+                    {/* Expansion button for symbols */}
+                    <button 
+                      type="button"
+                      onClick={() => setShowMathSymbols(!showMathSymbols)}
+                      className={`ml-3 p-2 rounded-md border transition-colors ${
+                        showMathSymbols 
+                          ? 'bg-blue-100 border-blue-300 text-blue-700' 
+                          : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      title="Show math symbols"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                          d={showMathSymbols ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} 
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                
+                {/* Math notation selector - positioned above the input */}
+                {showMathInput && showMathSymbols && (
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">
+                    {/* Header */}
+                    <div className="border-b border-gray-200 px-4 py-3">
+                      <h3 className="font-semibold text-gray-900">Common</h3>
+                    </div>
+
+                    {/* Math Symbols Grid */}
+                    <div className="p-4 max-h-64 overflow-y-auto">
+                      <div className="grid grid-cols-6 gap-2">
+                        {filteredMathSymbols.map((symbol, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => {
+                              // Convert symbol to LaTeX format
+                              let latexSymbol = symbol.symbol;
+                              if (symbol.symbol === "×") latexSymbol = "\\times";
+                              else if (symbol.symbol === "÷") latexSymbol = "\\div";
+                              else if (symbol.symbol === "±") latexSymbol = "\\pm";
+                              else if (symbol.symbol === "□/□") latexSymbol = "\\frac{}{}";
+                              else if (symbol.symbol === "√□") latexSymbol = "\\sqrt{}";
+                              else if (symbol.symbol === "□²") latexSymbol = "^{2}";
+                              else if (symbol.symbol === "□³") latexSymbol = "^{3}";
+                              else if (symbol.symbol === "□^□") latexSymbol = "^{}";
+                              else if (symbol.symbol === "≠") latexSymbol = "\\neq";
+                              else if (symbol.symbol === "≈") latexSymbol = "\\approx";
+                              else if (symbol.symbol === "≤") latexSymbol = "\\leq";
+                              else if (symbol.symbol === "≥") latexSymbol = "\\geq";
+                              else if (symbol.symbol === "·") latexSymbol = "\\cdot";
+                              else if (symbol.symbol === "ln □") latexSymbol = "\\ln";
+                              else if (symbol.symbol === "log₁₀(□)") latexSymbol = "\\log_{10}";
+                              else if (symbol.symbol === "log□ □") latexSymbol = "\\log_{}";
+                              else if (symbol.symbol === "e^□") latexSymbol = "e^{}";
+                              else if (symbol.symbol === "π") latexSymbol = "\\pi";
+                              else if (symbol.symbol === "∞") latexSymbol = "\\infty";
+                              else if (symbol.symbol === "°") latexSymbol = "^{\\circ}";
+                              else if (symbol.symbol === "θ") latexSymbol = "\\theta";
+                              else if (symbol.symbol === "(□)") latexSymbol = "()";
+                              else if (symbol.symbol === "[□]") latexSymbol = "[]";
+                              else if (symbol.symbol === "|□|") latexSymbol = "||";
+                              else if (symbol.symbol === "||□||") latexSymbol = "|||";
+                              else if (symbol.symbol === "⊢") latexSymbol = "\\vdash";
+                              else if (symbol.symbol === "∑") latexSymbol = "\\sum";
+                              else if (symbol.symbol === "gcd(□, □)") latexSymbol = "\\gcd(,)";
+                              else if (symbol.symbol === "lcm(□, □)") latexSymbol = "\\lcm(,)";
+                              else if (symbol.symbol === "sin(□)") latexSymbol = "\\sin";
+                              else if (symbol.symbol === "cos(□)") latexSymbol = "\\cos";
+                              else if (symbol.symbol === "tan(□)") latexSymbol = "\\tan";
+                              else if (symbol.symbol === "lim□→□") latexSymbol = "\\lim_{}";
+                              else if (symbol.symbol === "d/dx") latexSymbol = "\\frac{d}{dx}";
+                              else if (symbol.symbol === "∫ d□") latexSymbol = "\\int d";
+                              else if (symbol.symbol === "∫□^□ d□") latexSymbol = "\\int_{}^{} d";
+                              
+                              insertMathSymbol(latexSymbol);
+                            }}
+                            className="min-h-[32px] h-auto px-1 py-1 text-xs bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded transition-colors flex items-center justify-center text-center"
+                            title={symbol.name}
+                          >
+                            <span className="font-mono leading-tight break-words max-w-full text-center">{symbol.symbol}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Footer with Search and Filter */}
+                    <div className="border-t border-gray-200 px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center flex-1">
+                        <svg className="h-4 w-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                          type="text"
+                          placeholder="Search"
+                          value={mathSymbolSearch}
+                          onChange={(e) => setMathSymbolSearch(e.target.value)}
+                          className="flex-1 text-sm border-none outline-none bg-transparent"
+                        />
+                      </div>
+                      
+                      <div className="flex items-center ml-4">
+                        <svg className="h-4 w-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                        </svg>
+                        <select
+                          value={selectedMathCategory}
+                          onChange={(e) => setSelectedMathCategory(e.target.value)}
+                          className="text-sm border-none outline-none bg-transparent cursor-pointer"
+                        >
+                          {mathCategories.map(category => (
+                            <option key={category} value={category}>{category}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {isUploading && (
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Action buttons row */}
+            <div className="flex items-center justify-between mt-3">
+              <div className="text-xs text-gray-500">
+                Shift + Enter for new line
+              </div>
+              <div className="flex items-center space-x-2">
                 <Button
                   type="submit"
                   size="sm"
                   className="bg-omegalab-blue hover:bg-blue-700 text-white"
                   disabled={(message.trim() === "" && uploadedImages.length === 0) || sendMessageMutation.isPending || isUploading}
                 >
-                  <Send className="h-4 w-4" />
-                </Button>
-                <Button 
-                  type="button"
-                  variant={selectedMode === "answer" ? "default" : "outline"}
-                  size="sm" 
-                  className={selectedMode === "answer" 
-                    ? "bg-gray-900 text-white hover:bg-gray-800" 
-                    : "text-gray-600 border-gray-300"
-                  }
-                  onClick={() => setSelectedMode("answer")}
-                >
-                  Answer
-                </Button>
-                <Button
-                  type="button"
-                  variant={selectedMode === "tutor" ? "default" : "outline"}
-                  size="sm"
-                  className={selectedMode === "tutor" 
-                    ? "bg-gray-900 text-white hover:bg-gray-800"
-                    : "text-gray-600 border-gray-300"
-                  }
-                  onClick={() => setSelectedMode("tutor")}
-                >
-                  Tutor
+                  <Send className="h-4 w-4 mr-2" />
+                  Send
                 </Button>
               </div>
-            </div>
-            
-            <div className="text-xs text-gray-500 mt-2">
-              Shift + Enter for new line
             </div>
           </form>
         </div>
       </div>
       {showDrawing && (
-        <DrawingPad onComplete={handleDrawingComplete} onCancel={() => setShowDrawing(false)} />
+        <TldrawPad
+          onComplete={handleDrawingComplete}
+          onCancel={() => setShowDrawing(false)}
+        />
+      )}
+
+      {/* Pro Upgrade Modal */}
+      {showProUpgrade && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <div className="flex items-center">
+                <span className="text-2xl mr-2">🚀</span>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Upgrade to OmegaLab Pro</h2>
+                  <p className="text-sm text-gray-600">Eligible for a free 7-day trial.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowProUpgrade(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Billing Options */}
+            <div className="p-6 border-b">
+              <div className="text-center">
+                <span className="text-3xl font-bold text-gray-900">$20</span>
+                <span className="text-gray-600">/month</span>
+              </div>
+            </div>
+
+            {/* CTA Button */}
+            <div className="p-6 border-b">
+              <button 
+                onClick={handleProUpgrade}
+                className="w-full bg-gray-900 text-white py-3 px-4 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-gray-800 transition-colors"
+              >
+                <span>🚀</span>
+                Try Pro for free
+                <span>↗</span>
+              </button>
+            </div>
+
+            {/* Features */}
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <span className="text-lg mr-2">🚀</span>
+                <h3 className="text-lg font-semibold text-gray-900">Included in OmegaLab Pro</h3>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-start">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="text-blue-600 text-xs">💬</span>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Unlimited questions</div>
+                    <div className="text-sm text-gray-600">Ask as many questions as you want</div>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="text-blue-600 text-xs">⚙️</span>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Access to Advanced Solver</div>
+                    <div className="text-sm text-gray-600">Get detailed step-by-step solutions</div>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="text-blue-600 text-xs">📄</span>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">PDF Uploads</div>
+                    <div className="text-sm text-gray-600">Upload and chat about PDF documents</div>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="text-blue-600 text-xs">🎯</span>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">Priority support</div>
+                    <div className="text-sm text-gray-600">Get help when you need it most</div>
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="text-blue-600 text-xs">✨</span>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900">...and everything in Free</div>
+                    <div className="text-sm text-gray-600">All the features you already love</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

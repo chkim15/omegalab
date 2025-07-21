@@ -2,8 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { solveMathProblem, analyzeImageProblem } from "./services/openai";
+import { createCheckoutSession, createPortalSession, handleWebhook } from "./services/stripe";
 import { insertUserSchema, insertConversationSchema, insertMessageSchema } from "@shared/schema";
 import multer from "multer";
+import express from "express";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -242,6 +244,97 @@ ${solution.explanation}
     } catch (error) {
       console.error("Image solving error:", error);
       res.status(500).json({ message: "Failed to solve math problem from image" });
+    }
+  });
+
+  // Stripe routes
+  app.post("/api/create-checkout-session", async (req, res) => {
+    try {
+      const { priceId, userId, email } = req.body;
+      
+      if (!priceId || !userId || !email) {
+        return res.status(400).json({ 
+          message: "Missing required fields: priceId, userId, email" 
+        });
+      }
+
+      const session = await createCheckoutSession({
+        priceId,
+        userId,
+        email,
+      });
+
+      res.json({ url: session.url });
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      res.status(500).json({ 
+        message: "Failed to create checkout session" 
+      });
+    }
+  });
+
+  app.post("/api/create-portal-session", async (req, res) => {
+    try {
+      const { customerId } = req.body;
+      
+      if (!customerId) {
+        return res.status(400).json({ 
+          message: "Customer ID required" 
+        });
+      }
+
+      const session = await createPortalSession(customerId);
+      res.json({ url: session.url });
+    } catch (error) {
+      console.error('Error creating portal session:', error);
+      res.status(500).json({ 
+        message: "Failed to create portal session" 
+      });
+    }
+  });
+
+  app.post("/api/webhooks/stripe", express.raw({ type: 'application/json' }), async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    
+    if (!sig) {
+      return res.status(400).json({ message: "Missing stripe signature" });
+    }
+
+    try {
+      const event = await handleWebhook(req.body, sig as string);
+      
+      switch (event.type) {
+        case 'checkout.session.completed':
+          const session = event.data.object as any;
+          const userId = session.metadata?.userId;
+          
+          if (userId) {
+            // Update user to Pro plan for one-time payment
+            await storage.updateUserPlan(parseInt(userId), 'pro');
+          }
+          break;
+          
+        case 'payment_intent.succeeded':
+          const paymentIntent = event.data.object as any;
+          const customerId = paymentIntent.customer as string;
+          
+          if (customerId) {
+            // Handle successful payment
+            const user = await storage.getUserByStripeCustomerId(customerId);
+            if (user) {
+              await storage.updateUserPlan(user.id, 'pro');
+            }
+          }
+          break;
+          
+        default:
+          console.log(`Unhandled event type: ${event.type}`);
+      }
+      
+      res.json({ received: true });
+    } catch (error) {
+      console.error('Webhook error:', error);
+      res.status(400).json({ message: "Webhook error" });
     }
   });
 
